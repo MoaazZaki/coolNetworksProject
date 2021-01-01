@@ -18,7 +18,7 @@ Define_Module(Node);
 
 void Node::createMessageEvent()
 {
-    if(nbuffered < par("MAX_SEQ").intValue())
+    if(nbuffered <= par("MAX_SEQ").intValue() && next_frame_to_send + dynamic_window_start != buffer.size())
     {
         scheduleAt(simTime() + par("NEW_MESSAGE_TIME").doubleValue(), newMessageEvent);
     }
@@ -31,24 +31,35 @@ void Node::inc(int&seq,int op)
         case 0:
             if(seq < par("MAX_SEQ").intValue())
                 seq = (seq + 1 ) % (par("MAX_SEQ").intValue() + 1);
-            if(seq + dynamic_window_start == buffer.size() )
+
+            /*if(seq + dynamic_window_start == buffer.size() )
             {
                 ack_expected = 0;
                 next_frame_to_send = 0;
                 //frame_expected = 0;
                 nbuffered = 0;
                 dynamic_window_start = 0;
-            }
+            }*/
             break;
 
         case 1:
-            if(dynamic_window_start+par("MAX_SEQ").intValue() != buffer.size())
+            /*if(dynamic_window_start+par("MAX_SEQ").intValue() != buffer.size())
             {
                 dynamic_window_start++;
                 next_frame_to_send--;
+                //if(next_frame_to_send == 0)
+                    //seq = (seq + 1 ) % (buffer.size());
             }
-            seq = (seq + 1 ) % (par("MAX_SEQ").intValue() + 1);
-
+            else*/
+            seq = (seq + 1 ) % (buffer.size());
+            /*if(seq == par("MAX_SEQ").intValue() && par("MAX_SEQ").intValue() + dynamic_window_start == buffer.size())
+            {
+                ack_expected = 0;
+                //next_frame_to_send = 0;
+                //frame_expected = 0;
+                //nbuffered = 0;
+                //dynamic_window_start = 0;
+            }*/
 
             break;
 
@@ -60,6 +71,16 @@ void Node::inc(int&seq,int op)
 
 }
 
+void Node::moveDynamicWindow()
+{
+    while(ack_expected > 0 && dynamic_window_start+ par("MAX_SEQ").intValue() < buffer.size())
+    {
+        ack_expected--;
+        next_frame_to_send--;
+        dynamic_window_start++;
+    }
+
+}
 bool Node::between(int sf,int si,int sn) // Check if sf <= si < sn
 {
     return (((sf <= si) && (si < sn)) || ((sn <sf) && (sf <= si)) || ((si < sn) && (sn < sf)));
@@ -79,13 +100,7 @@ MyMessage_Base* Node::createMessage(std::string inp) // Create new message given
     std::bitset<8> evenParity (message[0]);
     for(int i = 1;i <message.size();i++) evenParity = evenParity ^ message[i];
 
-//    int rand=uniform(0,1)*10;
-//    if(rand<3)
-//    {
-//       int rand_index = uniform(0,1)*100 ;
-//       rand_index = rand_index % inp.size();
-//       inp[rand_index]=inp[rand_index]+5;
-//    }
+
 
     MyMessage_Base *mmsg = new MyMessage_Base(inp.c_str());
     mmsg->setM_Payload(inp.c_str());
@@ -101,14 +116,62 @@ void Node::sendNewMessage(int frame_nr,int frame_expected,std::vector<MyMessage_
 {
     MyMessage_Base* message = buffer[frame_nr+dynamic_window_start]->dup();
     message->setSeq_Num(frame_nr+dynamic_window_start);
-    message->setAck((frame_expected + par("MAX_SEQ").intValue() ) % (par("MAX_SEQ").intValue()  +1));
-    send(message,"out");
-    // TODO: START TIMER
+    message->setAck((frame_expected +buffer.size()) % (buffer.size() ));
+
+
+    // Corrupt or not
+ //   int rand=uniform(0,1)*10;
+/*
+    if(rand<3)
+    {
+       int rand_index = uniform(0,1)*100 ;
+       std::string inp = message->getM_Payload();
+       rand_index = rand_index % inp.size();
+       inp[rand_index]=inp[rand_index]+5;
+       message->setM_Payload(inp);
+    }
+*/
+
+    //Send or drop
+//    rand=uniform(0,1)*10;
+//    if(rand>3)
+        send(message,"out");
+
+    //START TIMER
     MyMessage_Base * currentTimeout = timeoutEvent->dup();
     currentTimeout->setAck(message->getAck());
     currentTimeout->setSeq_Num(frame_nr+dynamic_window_start);
+    currentTimeout->setChar_Count(0);
     scheduleAt(simTime() + par("TIMEOUT").doubleValue(), currentTimeout);
+    timeoutBuffer[frame_nr+dynamic_window_start] = currentTimeout;
 
+}
+
+void Node::ResendMessage(int frame_nr,int frame_expected,std::vector<MyMessage_Base*> buffer)
+{
+    MyMessage_Base* message = buffer[frame_nr]->dup();
+    message->setSeq_Num(frame_nr);
+    message->setAck((frame_expected +buffer.size()) % (buffer.size() ));
+    send(message,"out");
+
+    //ASSUME error free on re-sending any message
+//    MyMessage_Base * currentTimeout = timeoutEvent->dup();
+//    currentTimeout->setAck(message->getAck());
+//    currentTimeout->setSeq_Num(frame_nr+dynamic_window_start);
+//    scheduleAt(simTime() + par("TIMEOUT").doubleValue(), currentTimeout);
+
+}
+
+void Node::cencelTimeout(int ack)
+{
+    //Send Cancel timeout event
+   /* MyMessage_Base * cancelTimeoutMessage = timeoutEvent->dup();
+    cancelTimeoutMessage->setChar_Count(-1);
+    cancelTimeoutMessage->setSeq_Num(mmsg->getSeq_Num());
+    send(cancelTimeoutMessage,"out");*/
+   cancelEvent(timeoutBuffer[ack]);
+   delete timeoutBuffer[ack];
+   timeoutBuffer[ack] = nullptr;
 }
 
 void Node::initialize()
@@ -124,6 +187,9 @@ void Node::initialize()
 
     newMessageEvent = new MyMessage_Base("New Message");
     newMessageEvent->setE_Type(NETWORK_LAYER_READY);
+
+    errorEvent = new MyMessage_Base("Error");
+    errorEvent->setE_Type(ERR);
 
     // creating random content for communication
     if ( strcmp(getName(),"Tic")==0)
@@ -151,17 +217,20 @@ void Node::initialize()
         buffer.push_back(createMessage("but I can't"));
         buffer.push_back(createMessage("yeah very sad"));
     }
+    timeoutBuffer.resize(buffer.size());
     // Start scheduling
     createMessageEvent();
 }
 
 void Node::handleMessage(cMessage *msg)
 {
-    MyMessage_Base *mmsg = check_and_cast<MyMessage_Base *>(msg);
 
+    MyMessage_Base *mmsg = check_and_cast<MyMessage_Base *>(msg);
+    if(mmsg->getSeq_Num() == -1) initialize();
     switch(mmsg->getE_Type())
     {
         case NETWORK_LAYER_READY:
+
             nbuffered++;
             sendNewMessage(next_frame_to_send,frame_expected,buffer);
             inc(next_frame_to_send,0);
@@ -170,8 +239,28 @@ void Node::handleMessage(cMessage *msg)
             break;
 
         case FRAME_ARRIVAL:
-            if(mmsg->getSeq_Num() == frame_expected)
+        {
+            if(mmsg->getSeq_Num() <= frame_expected)
             {
+                // Checking message
+                std::vector<std::bitset<8>> message;
+                message.push_back((int)mmsg->getChar_Count());
+                std::string inp = mmsg->getM_Payload();
+                for(int i = 0;i <inp.size();i++)    message.push_back(std::bitset<8>(inp[i]));
+
+                std::bitset<8> evenParity (message[0]);
+                for(int i = 1;i <message.size();i++) evenParity = evenParity ^ message[i];
+
+
+                if(evenParity != mmsg->getMycheckbits())
+                {
+                    //Error detected
+                    EV<< getName()<<":Message with seq "<<mmsg->getSeq_Num()<<" has an ERROR!"<<endl;
+                    MyMessage_Base * currentError = errorEvent->dup();
+                    scheduleAt(simTime(), currentError); //Trigger self error event
+                    break;
+                }
+
                 //Printing the cool details of the message
                 bubble(mmsg->getM_Payload());
                 EV<<"received message at: ";
@@ -184,35 +273,46 @@ void Node::handleMessage(cMessage *msg)
                 EV<< mmsg->getM_Payload();
                 EV<<" and ack of: ";
                 EV<< mmsg->getAck();
+
+
+
+                while(between(ack_expected+dynamic_window_start,mmsg->getAck(),next_frame_to_send+dynamic_window_start))
+                {
+                    nbuffered--;
+                    cencelTimeout(ack_expected+dynamic_window_start);
+                    inc(ack_expected,1);
+                }
+
                 inc(frame_expected,2);
-            }
+                moveDynamicWindow();
 
-            while(between(ack_expected,mmsg->getAck(),next_frame_to_send))
-            {
-                nbuffered--;
-                //cancelEvent(timeoutEvent);
-                inc(ack_expected,1);
-            }
-            break;
+                /*if(nbuffered == 0)
+                {
+                    next_frame_to_send = 0;
+                    dynamic_window_start =0;
+                }*/
+                delete mmsg;
 
+                break;
+            }
+        }
         case ERR:
-            break; //Silent
+            break; //Silence
 
         case TIMEOUT:
-            if(mmsg->getSeq_Num() == ack_expected)
+
+            next_frame_to_send = ack_expected+dynamic_window_start;
+            EV<< getName()<<": Resending starting from: ";
+            EV<< next_frame_to_send<<endl;
+            for(int i=1; i<=nbuffered; i++)
             {
-                next_frame_to_send = ack_expected;
-                for(int i=1; i<=nbuffered; i++)
-                {
-                    sendNewMessage(next_frame_to_send,frame_expected,buffer);
-                    inc(next_frame_to_send,0);
-                }
-            }else
-            {
-                EV<< "Message with sequence number: ";
-                EV<< mmsg->getSeq_Num();
-                EV<< " delivered successfully :'D";
+                ResendMessage(next_frame_to_send,frame_expected,buffer);
+                EV<< "Message with seq "<<next_frame_to_send<<" has been re-sent"<<endl;
+                inc(next_frame_to_send,0);
             }
+            next_frame_to_send -= dynamic_window_start; //Move window forward
+            delete mmsg;
+
             break;
     }
 
@@ -261,9 +361,27 @@ void Node::handleMessage(cMessage *msg)
 //        }
 //    }
 
+    /*if (cSimulation::getActiveSimulation()->getFES()->getLength() == 0)
+    {
+        MyMessage_Base* message = new MyMessage_Base("Restart");
+        message->setSeq_Num(-1);
+        send(message,"out");
 
-
+        initialize();
+    }*/
 }
 
+void Node::finish()
+{
+/*
+    ack_expected = 0;
+    next_frame_to_send = 0;
+    frame_expected = 0;
+    nbuffered = 0;
+    dynamic_window_start = 0;
+    createMessageEvent();
+*/
+
+}
 
 

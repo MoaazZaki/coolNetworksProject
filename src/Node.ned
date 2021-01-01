@@ -22,7 +22,7 @@ simple Node
 {
     parameters:
         volatile int MAX_SEQ = default(7);
-        volatile double TIMEOUT @unit(s) = default(3.0s);
+        volatile double TIMEOUT @unit(s) = default(2.0s);
         volatile double NEW_MESSAGE_TIME @unit(s) = default(1.0s);
         
     gates:

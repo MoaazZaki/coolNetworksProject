@@ -20,7 +20,6 @@
 #include <bitset>
 #include <vector>
 #include "MyMessage_m.h"
-
 using namespace omnetpp;
 
 enum eventType {NETWORK_LAYER_READY,FRAME_ARRIVAL,ERR,TIMEOUT};
@@ -35,17 +34,24 @@ class Node : public cSimpleModule
     std::vector<MyMessage_Base*> buffer;
     int nbuffered;
 
+    std::vector<MyMessage_Base*> timeoutBuffer;
     MyMessage_Base*  timeoutEvent;
+
     MyMessage_Base*  newMessageEvent;
+    MyMessage_Base*  errorEvent;
 
   public:
     void createMessageEvent();
     MyMessage_Base* createMessage(std::string inp);
     void sendNewMessage(int frame_nr,int frame_expected,std::vector<MyMessage_Base*> buffer);
+    void ResendMessage(int frame_nr,int frame_expected,std::vector<MyMessage_Base*> buffer);
+    void cencelTimeout(int ack);
+    void moveDynamicWindow();
     bool between(int sf,int si,int sn);
     void inc(int&seq,int op);
     virtual void initialize();
     virtual void handleMessage(cMessage *msg);
+    virtual void finish();
 
 };
 

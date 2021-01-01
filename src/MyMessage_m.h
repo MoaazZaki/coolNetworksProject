@@ -75,7 +75,6 @@ class MyMessage_Base : public ::omnetpp::cPacket
     bits mycheckbits;
     event E_Type;
     int ack;
-
   private:
     void copy(const MyMessage_Base& other);
 
@@ -121,6 +120,7 @@ class MyMessage_Base : public ::omnetpp::cPacket
     virtual void setE_Type(const event& E_Type);
     virtual int getAck() const;
     virtual void setAck(int ack);
+
 };
 
 

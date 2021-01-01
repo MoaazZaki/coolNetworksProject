@@ -307,6 +307,8 @@ void MyMessage_Base::setAck(int ack)
     this->ack = ack;
 }
 
+
+
 class MyMessageDescriptor : public omnetpp::cClassDescriptor
 {
   private:
@@ -574,5 +576,6 @@ void *MyMessageDescriptor::getFieldStructValuePointer(void *object, int field, i
         default: return nullptr;
     }
 }
+
 
 
