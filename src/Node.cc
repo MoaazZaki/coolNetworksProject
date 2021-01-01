@@ -116,42 +116,45 @@ void Node::sendNewMessage(int frame_nr,int frame_expected,std::vector<MyMessage_
 {
     MyMessage_Base* message = buffer[frame_nr+dynamic_window_start]->dup();
     message->setSeq_Num(frame_nr+dynamic_window_start);
-    message->setAck((frame_expected +buffer.size()) % (buffer.size() ));
+    message->setAck((frame_expected +buffer.size()) % (buffer.size() +1));
 
 
     // Corrupt or not
- //   int rand=uniform(0,1)*10;
-/*
-    if(rand<3)
-    {
-       int rand_index = uniform(0,1)*100 ;
-       std::string inp = message->getM_Payload();
-       rand_index = rand_index % inp.size();
-       inp[rand_index]=inp[rand_index]+5;
-       message->setM_Payload(inp);
+    if(strcmp(getName(),"Tic")==0){
+        int rand=uniform(0,1)*10;
+        if(rand>=7)
+        {
+            EV<< getName()<<"MEOOOOOOOOOOOOOOOOOOW has an ERROR!"<<endl;
+           int rand_index = uniform(0,1)*100 ;
+           std::string inp = message->getM_Payload();
+           rand_index = rand_index % inp.size();
+           inp[rand_index]=inp[rand_index]+5;
+           message->setM_Payload(inp);
+
+
+        }
     }
-*/
 
     //Send or drop
 //    rand=uniform(0,1)*10;
 //    if(rand>3)
         send(message,"out");
 
-    //START TIMER
-    MyMessage_Base * currentTimeout = timeoutEvent->dup();
-    currentTimeout->setAck(message->getAck());
-    currentTimeout->setSeq_Num(frame_nr+dynamic_window_start);
-    currentTimeout->setChar_Count(0);
-    scheduleAt(simTime() + par("TIMEOUT").doubleValue(), currentTimeout);
-    timeoutBuffer[frame_nr+dynamic_window_start] = currentTimeout;
+      //START TIMER
+      MyMessage_Base * currentTimeout = timeoutEvent->dup();
+      currentTimeout->setAck(message->getAck());
+      currentTimeout->setSeq_Num(frame_nr+dynamic_window_start);
+      currentTimeout->setChar_Count(0);
+      scheduleAt(simTime() + par("TIMEOUT").doubleValue(), currentTimeout);
+      timeoutBuffer[frame_nr+dynamic_window_start] = currentTimeout;
 
 }
 
 void Node::ResendMessage(int frame_nr,int frame_expected,std::vector<MyMessage_Base*> buffer)
 {
-    MyMessage_Base* message = buffer[frame_nr]->dup();
-    message->setSeq_Num(frame_nr);
-    message->setAck((frame_expected +buffer.size()) % (buffer.size() ));
+    MyMessage_Base* message = buffer[frame_nr+dynamic_window_start]->dup();
+    message->setSeq_Num(frame_nr+dynamic_window_start);
+    message->setAck((frame_expected +buffer.size()) % (buffer.size() +1));
     send(message,"out");
 
     //ASSUME error free on re-sending any message
@@ -164,6 +167,7 @@ void Node::ResendMessage(int frame_nr,int frame_expected,std::vector<MyMessage_B
 
 void Node::cencelTimeout(int ack)
 {
+    if(timeoutBuffer[ack] == nullptr) return;
     //Send Cancel timeout event
    /* MyMessage_Base * cancelTimeoutMessage = timeoutEvent->dup();
     cancelTimeoutMessage->setChar_Count(-1);
@@ -251,67 +255,122 @@ void Node::handleMessage(cMessage *msg)
                 std::bitset<8> evenParity (message[0]);
                 for(int i = 1;i <message.size();i++) evenParity = evenParity ^ message[i];
 
-
+                static bool correctMessage = true;
                 if(evenParity != mmsg->getMycheckbits())
                 {
                     //Error detected
                     EV<< getName()<<":Message with seq "<<mmsg->getSeq_Num()<<" has an ERROR!"<<endl;
-                    MyMessage_Base * currentError = errorEvent->dup();
-                    scheduleAt(simTime(), currentError); //Trigger self error event
-                    break;
+                    correctMessage = false;
                 }
+                if(correctMessage){
+                    //Printing the cool details of the message
+                    bubble(mmsg->getM_Payload());
+                    EV<<"received message at: ";
+                    EV << getName();
+                    EV<<" received message with type: ";
+                    EV << mmsg->getM_Type();
+                    EV<<" received message with sequence number: ";
+                    EV << mmsg->getSeq_Num();
+                    EV<<" and payload of: ";
+                    EV<< mmsg->getM_Payload();
+                    EV<<" and ack of: ";
+                    EV<< mmsg->getAck();
 
-                //Printing the cool details of the message
-                bubble(mmsg->getM_Payload());
+
+
+                    /*while(between(ack_expected+dynamic_window_start,mmsg->getAck(),next_frame_to_send+dynamic_window_start))
+                    {
+                        nbuffered--;
+                        cencelTimeout(ack_expected+dynamic_window_start);
+                        inc(ack_expected,1);
+                    }*/
+
+                    if(mmsg->getSeq_Num() == frame_expected)
+                        inc(frame_expected,2);
+
+
+                    /*if(nbuffered == 0)
+                    {
+                        next_frame_to_send = 0;
+                        dynamic_window_start =0;
+                    }*/
+                }
+                else
+                    correctMessage = true;
+
+            }
+            else
+            {
                 EV<<"received message at: ";
                 EV << getName();
-                EV<<" received message with type: ";
-                EV << mmsg->getM_Type();
-                EV<<" received message with sequence number: ";
+                EV<<" with seq= ";
                 EV << mmsg->getSeq_Num();
-                EV<<" and payload of: ";
-                EV<< mmsg->getM_Payload();
-                EV<<" and ack of: ";
-                EV<< mmsg->getAck();
-
-
-
-                while(between(ack_expected+dynamic_window_start,mmsg->getAck(),next_frame_to_send+dynamic_window_start))
-                {
-                    nbuffered--;
-                    cencelTimeout(ack_expected+dynamic_window_start);
-                    inc(ack_expected,1);
-                }
-
-                inc(frame_expected,2);
-                moveDynamicWindow();
-
-                /*if(nbuffered == 0)
-                {
-                    next_frame_to_send = 0;
-                    dynamic_window_start =0;
-                }*/
-                delete mmsg;
-
-                break;
+                EV<<" BUT IGNORED!!";
             }
+
+            while(between(ack_expected+dynamic_window_start,mmsg->getAck(),next_frame_to_send+dynamic_window_start))
+            {
+                nbuffered--;
+                cencelTimeout(ack_expected+dynamic_window_start);
+                inc(ack_expected,1);
+            }
+            moveDynamicWindow();
+
+            if(ack_expected+dynamic_window_start == buffer.size()-1 && nbuffered !=0)
+            {
+                nbuffered= 0;
+                for(int i = 0; i < timeoutBuffer.size();i++)
+                {
+                    if(timeoutBuffer[i] != nullptr)
+                    {
+                        cancelAndDelete(timeoutBuffer[i]);
+                        timeoutBuffer[i]=nullptr;
+                    }
+                }
+                ack_expected = 0;
+            }
+
+            delete mmsg;
+            break;
         }
         case ERR:
             break; //Silence
 
         case TIMEOUT:
 
-            next_frame_to_send = ack_expected+dynamic_window_start;
+            next_frame_to_send = ack_expected;
             EV<< getName()<<": Resending starting from: ";
-            EV<< next_frame_to_send<<endl;
+            EV<< next_frame_to_send + dynamic_window_start<<endl;
             for(int i=1; i<=nbuffered; i++)
             {
                 ResendMessage(next_frame_to_send,frame_expected,buffer);
-                EV<< "Message with seq "<<next_frame_to_send<<" has been re-sent"<<endl;
+                EV<< "Message with seq "<<next_frame_to_send + dynamic_window_start<<" has been re-sent"<<endl;
                 inc(next_frame_to_send,0);
             }
-            next_frame_to_send -= dynamic_window_start; //Move window forward
-            delete mmsg;
+            //next_frame_to_send -= dynamic_window_start; //Move window forward
+
+            /*cFutureEventSet * queue = cSimulation::getActiveSimulation()->getFES();
+
+            for (int i =0; i< queue->getLength();i++)
+            {
+                cEvent* event = queue->get(i);
+
+                MyMessage_Base *eventMsg = check_and_cast<MyMessage_Base *>(event);
+                if(eventMsg->isSelfMessage() && eventMsg->getM_Type() == TIMEOUT)
+                {
+                    cancelAndDelete(eventMsg);
+                }
+            }*/
+            for(int i = 0; i < timeoutBuffer.size();i++)
+            {
+                if(timeoutBuffer[i] != nullptr)
+                {
+                    cancelAndDelete(timeoutBuffer[i]);
+                    timeoutBuffer[i]=nullptr;
+                }
+            }
+
+            //delete mmsg;
 
             break;
     }
