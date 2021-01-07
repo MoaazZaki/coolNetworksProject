@@ -1,15 +1,33 @@
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+// 
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Lesser General Public License for more details.
+// 
+// You should have received a copy of the GNU Lesser General Public License
+// along with this program.  If not, see http://www.gnu.org/licenses/.
+// 
+
 #include "Node.h"
 Define_Module(Node);
 
 /*Resets data members of node in order to begin new transmission*/
+
 void Node::reset()
 {
-    //Reseting Go-back-N variables
+        //Reseting Go-back-N variables
+
     ack_expected = 0;
     next_frame_to_send = 0;
     frame_expected = 0;
     nbuffered = 0;
     dynamic_window_start = 0;
+    
 
     timeoutEvent = new MyMessage("timeout");
     timeoutEvent->setE_Type(TIMEOUT);
@@ -35,6 +53,7 @@ void Node::reset()
 
     timeoutBuffer.resize(buffer.size());
 }
+
 
 
 
@@ -126,6 +145,7 @@ MyMessage* Node::createMessage(std::string inp) // Create new message given stri
 
     MyMessage *mmsg = new MyMessage(inp.c_str());
     mmsg->setM_Payload(inp.c_str());
+    //mmsg->setM_Type(buffer.size()); // It's now a dummy variable so I'll use it in holding buffer size of the other side
     mmsg->setChar_Count(size);
     mmsg->setMycheckbits(evenParity);
     mmsg->setE_Type(FRAME_ARRIVAL);
@@ -139,28 +159,208 @@ void Node::sendNewMessage(int frame_nr,int frame_expected,std::vector<MyMessage*
     MyMessage* message = buffer[frame_nr+dynamic_window_start]->dup();
     message->setSeq_Num(frame_nr+dynamic_window_start);
     message->setAck((frame_expected +buffer.size()) % (buffer.size() +1));
+    //message->setSeq_Num(0);
+    //Shadow message for duplication
+    MyMessage* shadow_message = buffer[frame_nr+dynamic_window_start]->dup();
+    shadow_message->setSeq_Num(frame_nr+dynamic_window_start);
+    shadow_message->setAck((frame_expected +buffer.size()) % (buffer.size() +1));
 
+
+    //flags for errors
+    bool loss = false;
+    bool duplicate = false;
+    bool delay = false;
+    bool corruption = false;
+
+    /*
+     * //parameters for errors
+    double delay_amount = 0.2;
+    //limit (percentage of errors) //would be changed from the ini files
+    double corr_limit = 3;
+    double delay_limit = 3;
+    double loss_limit = 3;
+    double dup_limit = 3;
+     *
+    */
+    //parameters for errors
+    double delay_amount = par("delay_amount").doubleValue();
+    //limit (percentage of errors) //would be changed from the ini files
+    double corr_limit = par("corr_limit").doubleValue();
+    double delay_limit = par("delay_limit").doubleValue();
+    double loss_limit = par("loss_limit").doubleValue();
+    double dup_limit = par("dup_limit").doubleValue();
+
+    //Debug
+    EV<< " delay_amount "<< std::to_string(delay_amount)<<endl;
+    EV<< " delay_limit "<< std::to_string(delay_limit)<<endl;
+    EV<< " corr_limit "<< std::to_string(corr_limit)<<endl;
+    EV<< " dup_limit "<< std::to_string(dup_limit)<<endl;
+    EV<< " loss_limit "<< std::to_string(loss_limit)<<endl;
+    //
 
     // Corrupt or not
-
     int rand=uniform(0,1)*10;
-    if(rand<3)
+    EV<< " Rand is (corruption) "<< std::to_string(rand)<<endl;
+    if(rand < corr_limit) //value will be parameterized
+    {
+        corruption = true;
+        EV<< getName()<<" has an ERROR (Corruption)!"<<endl;
+
+        /*
+       std::string inp = message->getM_Payload();
+       if(inp != ""){
+       EV<< getName()<<" has an ERROR (Corruption)!"<<endl;
+       int rand_index = uniform(0,1)*100 ;
+
+       rand_index = rand_index % inp.size();
+       inp[rand_index]=inp[rand_index]+5;
+       message->setM_Payload(inp.c_str());
+       }*/
+    }
+
+    //Send or drop
+    rand=uniform(0,1)*10;
+    EV<< " Rand is (Drop) "<< std::to_string(rand)<<endl;
+    if(rand < loss_limit ) //value will be parameterized
+    {
+
+        EV<< getName()<<" has an ERROR (Drop)!"<<endl;
+        loss = true;
+    }/*
+    else
+    {
+        send(message,"out",currentPeerIndex);
+    }*/
+
+    //Duplicate or not (separately i.e the probability will just send one additional packet or not)
+    rand=uniform(0,1)*10;
+    EV<< " Rand is (Duplication) "<< std::to_string(rand)<<endl;
+    if(rand < dup_limit) //value will be parameterized
+    {
+        EV<< getName()<<" has an ERROR (Duplication)!"<<endl;
+        duplicate = true;
+        //send(message,"out",currentPeerIndex);
+    }
+
+    rand=uniform(0,1)*10;
+    EV<< " Rand is (Delay) "<< std::to_string(rand)<<endl;
+    if(rand < delay_limit) //value will be parameterized
+    {
+        EV<< getName()<<" has an ERROR (delay)!"<<endl;
+        delay = true;
+        //send(message,"out",currentPeerIndex);
+    }
+
+    if(!loss && !duplicate && !delay && !corruption) //1. Normal case (Error free)
+    {
+        send(message,"out",currentPeerIndex);
+    }
+    else if(!loss && !duplicate && !delay && corruption) //2.Corruption only
     {
        std::string inp = message->getM_Payload();
        if(inp != ""){
-       EV<< getName()<<" has an ERROR!"<<endl;
+       //EV<< getName()<<" has an ERROR (Corruption)!"<<endl;
        int rand_index = uniform(0,1)*100 ;
 
        rand_index = rand_index % inp.size();
        inp[rand_index]=inp[rand_index]+5;
        message->setM_Payload(inp.c_str());
        }
+       send(message,"out",currentPeerIndex);
     }
+    else if(!loss && !duplicate && delay && !corruption) //3. Delay only
+    {
+        sendDelayed(message, delay_amount, "out",currentPeerIndex);
+    }
+    else if(!loss && !duplicate && delay && corruption) //4.Corruption + delay
+    {
+        //Corruption
+        std::string inp = message->getM_Payload();
+        if(inp != ""){
+       //EV<< getName()<<" has an ERROR (Corruption)!"<<endl;
+        int rand_index = uniform(0,1)*100 ;
 
-    //Send or drop
-//    rand=uniform(0,1)*10;
-//    if(rand>3)
+        rand_index = rand_index % inp.size();
+        inp[rand_index]=inp[rand_index]+5;
+        message->setM_Payload(inp.c_str());
+        }
+        //Delay
+        sendDelayed(message, delay_amount, "out",currentPeerIndex);
+    }
+    else if(!loss && duplicate && !delay && !corruption) //5.Duplication only
+    {
         send(message,"out",currentPeerIndex);
+        send(shadow_message,"out",currentPeerIndex);
+    }
+    else if(!loss && duplicate && !delay && corruption) //6. Duplication + corruption
+    {
+        //Corruption
+        std::string inp = message->getM_Payload();
+        if(inp != ""){
+        int rand_index = uniform(0,1)*100 ;
+
+        rand_index = rand_index % inp.size();
+        inp[rand_index]=inp[rand_index]+5;
+        message->setM_Payload(inp.c_str());
+        shadow_message->setM_Payload(inp.c_str());
+        }
+        send(message,"out",currentPeerIndex);
+        //Duplication
+        send(shadow_message,"out",currentPeerIndex);
+    }
+    else if(!loss && duplicate && delay && !corruption) //7. Duplication + delay (assuming constant delay)
+    {
+        sendDelayed(message, delay_amount, "out",currentPeerIndex);
+        sendDelayed(shadow_message, delay_amount, "out",currentPeerIndex);
+    }
+    else if(!loss && duplicate && delay && corruption) //8. Corruption + delay + duplicate
+    {
+        //Corruption
+        std::string inp = message->getM_Payload();
+        if(inp != ""){
+        int rand_index = uniform(0,1)*100 ;
+
+        rand_index = rand_index % inp.size();
+        inp[rand_index]=inp[rand_index]+5;
+        message->setM_Payload(inp.c_str());
+        shadow_message->setM_Payload(inp.c_str());
+        }
+        //Delay + duplication
+        sendDelayed(message, delay_amount, "out",currentPeerIndex);
+        sendDelayed(shadow_message, delay_amount, "out",currentPeerIndex);
+    }
+    else if(loss && !duplicate && !delay && !corruption) //9. Loss
+    {
+        //Nothing
+    }
+    else if(loss && !duplicate && !delay && corruption) //10. Corruption + Loss
+    {
+        //Nothing
+    }
+    else if(loss && !duplicate && delay && !corruption) //11. Delay + Loss
+    {
+        //Nothing
+    }
+    else if(loss && !duplicate && delay && corruption) //12. Corruption + Delay + Loss
+    {
+        //Nothing
+    }
+    else if(loss && duplicate && !delay && !corruption) //13. Duplication + loss (Loss dominates i.e both are lost)
+    {
+        //Nothing
+    }
+    else if(loss && duplicate && !delay && corruption) //14. Corruption + duplication + loss
+    {
+        //Nothing
+    }
+    else if(loss && duplicate && delay && !corruption) //15. Delay + duplication + loss
+    {
+        //Nothing
+    }
+    else if(loss && duplicate && delay && corruption) //16. All kind of errors
+    {
+        //Nothing
+    }
 
       //START TIMER
       MyMessage * currentTimeout = timeoutEvent->dup();
@@ -202,6 +402,7 @@ void Node::cencelTimeout(int ack)
 
 void Node::initialize()
 {
+    //reset();
     n=getParentModule()->par("numberofNodes");
     currentPeerIndex=-1;
 }
@@ -215,7 +416,6 @@ void Node::handleMessage(cMessage *msg)
         index=msg->getArrivalGate()->getIndex();
         EV<<"Received message from "<<index<<endl;
     }
-
     //Message is from parent to initialize sending
     if(index==n-1)
     {
@@ -229,11 +429,9 @@ void Node::handleMessage(cMessage *msg)
         EV<<"Node received intialization message from parent, peer index is "<<mmsg->getSeq_Num()<<" "<<currentPeerIndex;
         EV<<"file path: "<<fileName<<"\n";
         reset();
-
         // Start scheduling
         createMessageEvent();
     }
-
     //Message is from pear
     else
     {
@@ -258,7 +456,7 @@ void Node::receiveMessageFromPeer(MyMessage *mmsg)
 
             case FRAME_ARRIVAL:
             {
-                if(mmsg->getSeq_Num() <= frame_expected)
+                if(mmsg->getSeq_Num() == frame_expected) //Condition modified for duplication case
                 {
                     // Checking message
                     std::vector<std::bitset<8>> message;
