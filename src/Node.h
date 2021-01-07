@@ -25,7 +25,7 @@
 
 using namespace omnetpp;
 
-enum eventType {NETWORK_LAYER_READY,FRAME_ARRIVAL,ERR,TIMEOUT};
+//enum eventType {NETWORK_LAYER_READY,FRAME_ARRIVAL,ERR,TIMEOUT};
 
 class Node : public cSimpleModule
 {
@@ -80,9 +80,9 @@ class Node : public cSimpleModule
     void moveDynamicWindow();
     bool between(int sf,int si,int sn);
     void inc(int&seq,int op);
-    virtual void initialize();
+    //virtual void initialize();
     void receiveMessageFromPeer(MyMessage *mmsg);
-    virtual void handleMessage(cMessage *msg);
+    //virtual void handleMessage(cMessage *msg);
     virtual void finish();
 
 };
