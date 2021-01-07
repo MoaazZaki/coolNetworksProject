@@ -23,8 +23,6 @@ void Node::reset()
     frame_expected = 0;
     nbuffered = 0;
     dynamic_window_start = 0;
-    n=getParentModule()->par("numberofNodes");
-    currentPeerIndex=-1;
 
     timeoutEvent = new MyMessage("timeout");
     timeoutEvent->setE_Type(TIMEOUT);
@@ -36,6 +34,17 @@ void Node::reset()
     errorEvent->setE_Type(ERR);
 
     buffer.clear();
+    std::vector<std::string> messages=fileReaderi.readFile(fileName);
+    for(int i=0;i<messages.size();i++)
+    {
+        buffer.push_back(createMessage(messages[i]));
+        EV<<"added message\n";
+    }
+    //appending buffer with empty frames if frames to receive are > frames to send
+    for(int i=messages.size();i<framesCount;i++)
+        buffer.push_back(createMessage(""));
+
+    /*
     // creating random content for communication
     int rand=uniform(0,1)*6;
     if ( rand>3)
@@ -63,6 +72,7 @@ void Node::reset()
         buffer.push_back(createMessage("but I can't"));
         buffer.push_back(createMessage("yeah very sad"));
     }
+    */
     timeoutBuffer.resize(buffer.size());
 }
 
@@ -156,7 +166,6 @@ MyMessage* Node::createMessage(std::string inp) // Create new message given stri
 
     MyMessage *mmsg = new MyMessage(inp.c_str());
     mmsg->setM_Payload(inp.c_str());
-    mmsg->setM_Type(buffer.size()); // It's now a dummy variable so I'll use it in holding buffer size of the other side
     mmsg->setChar_Count(size);
     mmsg->setMycheckbits(evenParity);
     mmsg->setE_Type(FRAME_ARRIVAL);
@@ -250,14 +259,16 @@ void Node::handleMessage(cMessage *msg)
     //Message is from parent to initialize sending
     if(index==n-1)
     {
-        reset();
         //set pear index
-        std::string payload= mmsg->getM_Payload();
-        std::sscanf(payload.c_str(),"%d",&currentPeerIndex);
+        framesCount=mmsg->getReceived_Frames_Count();
+        fileName= mmsg->getM_Payload();
+        currentPeerIndex=mmsg->getSeq_Num();
         if(currentPeerIndex>getIndex())
             currentPeerIndex--;
 
-        EV<<"Node received intialization message from parent, peer index is "<<payload.c_str()<<" "<<currentPeerIndex;
+        EV<<"Node received intialization message from parent, peer index is "<<mmsg->getSeq_Num()<<" "<<currentPeerIndex;
+        EV<<"file path: "<<fileName<<"\n";
+        reset();
 
         // Start scheduling
         createMessageEvent();
@@ -309,7 +320,7 @@ void Node::receiveMessageFromPeer(MyMessage *mmsg)
                         EV<<"received message at: ";
                         EV << getName();
                         EV<<" received message with type: ";
-                        EV << mmsg->getM_Type();
+                        EV << mmsg->getReceived_Frames_Count();
                         EV<<" received message with sequence number: ";
                         EV << mmsg->getSeq_Num();
                         EV<<" and payload of: ";

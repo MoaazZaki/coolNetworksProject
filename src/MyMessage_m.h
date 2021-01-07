@@ -30,7 +30,7 @@ typedef  int event;
  * packet MyMessage
  * {
  *     int Seq_Num;
- *     int M_Type;
+ *     int Received_Frames_Count;
  *     int Char_Count;
  *     string M_Payload;
  *     bits mycheckbits;
@@ -40,11 +40,13 @@ typedef  int event;
  * }
  * </pre>
  */
+enum eventType {NETWORK_LAYER_READY,FRAME_ARRIVAL,ERR,TIMEOUT,CONTROL};
+
 class MyMessage : public ::omnetpp::cPacket
 {
   protected:
     int Seq_Num;
-    int M_Type;
+    int Received_Frames_Count;
     int Char_Count;
     ::omnetpp::opp_string M_Payload;
     bits mycheckbits;
@@ -63,24 +65,15 @@ class MyMessage : public ::omnetpp::cPacket
     MyMessage(const MyMessage& other);
     virtual ~MyMessage();
     MyMessage& operator=(const MyMessage& other);
-    virtual MyMessage *dup() const override {MyMessage* new_message = new MyMessage;
-    new_message->setSeq_Num(Seq_Num);
-    new_message->setM_Type(M_Type);
-    new_message->setChar_Count(Char_Count);
-    new_message->setM_Payload(M_Payload.c_str());
-    new_message->setMycheckbits(mycheckbits);
-    new_message->setE_Type(E_Type);
-    new_message->setAck(ack);
-    return new_message;}
-
+    virtual MyMessage *dup() const override {return new MyMessage(*this);}
     virtual void parsimPack(omnetpp::cCommBuffer *b) const override;
     virtual void parsimUnpack(omnetpp::cCommBuffer *b) override;
 
     // field getter/setter methods
     virtual int getSeq_Num() const;
     virtual void setSeq_Num(int Seq_Num);
-    virtual int getM_Type() const;
-    virtual void setM_Type(int M_Type);
+    virtual int getReceived_Frames_Count() const;
+    virtual void setReceived_Frames_Count(int Received_Frames_Count);
     virtual int getChar_Count() const;
     virtual void setChar_Count(int Char_Count);
     virtual const char * getM_Payload() const;

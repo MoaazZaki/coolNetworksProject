@@ -8,7 +8,7 @@ class noncobject bits;
 class noncobject event;
 packet MyMessage {
     int Seq_Num;
-    int M_Type;
+    int Received_Frames_Count;
     int Char_Count;
     string M_Payload;
     bits mycheckbits;

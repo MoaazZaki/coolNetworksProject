@@ -182,7 +182,7 @@ Register_Class(MyMessage)
 MyMessage::MyMessage(const char *name, short kind) : ::omnetpp::cPacket(name,kind)
 {
     this->Seq_Num = 0;
-    this->M_Type = 0;
+    this->Received_Frames_Count = 0;
     this->Char_Count = 0;
     this->ack = 0;
 }
@@ -207,7 +207,7 @@ MyMessage& MyMessage::operator=(const MyMessage& other)
 void MyMessage::copy(const MyMessage& other)
 {
     this->Seq_Num = other.Seq_Num;
-    this->M_Type = other.M_Type;
+    this->Received_Frames_Count = other.Received_Frames_Count;
     this->Char_Count = other.Char_Count;
     this->M_Payload = other.M_Payload;
     this->mycheckbits = other.mycheckbits;
@@ -219,7 +219,7 @@ void MyMessage::parsimPack(omnetpp::cCommBuffer *b) const
 {
     ::omnetpp::cPacket::parsimPack(b);
     doParsimPacking(b,this->Seq_Num);
-    doParsimPacking(b,this->M_Type);
+    doParsimPacking(b,this->Received_Frames_Count);
     doParsimPacking(b,this->Char_Count);
     doParsimPacking(b,this->M_Payload);
     doParsimPacking(b,this->mycheckbits);
@@ -231,7 +231,7 @@ void MyMessage::parsimUnpack(omnetpp::cCommBuffer *b)
 {
     ::omnetpp::cPacket::parsimUnpack(b);
     doParsimUnpacking(b,this->Seq_Num);
-    doParsimUnpacking(b,this->M_Type);
+    doParsimUnpacking(b,this->Received_Frames_Count);
     doParsimUnpacking(b,this->Char_Count);
     doParsimUnpacking(b,this->M_Payload);
     doParsimUnpacking(b,this->mycheckbits);
@@ -249,14 +249,14 @@ void MyMessage::setSeq_Num(int Seq_Num)
     this->Seq_Num = Seq_Num;
 }
 
-int MyMessage::getM_Type() const
+int MyMessage::getReceived_Frames_Count() const
 {
-    return this->M_Type;
+    return this->Received_Frames_Count;
 }
 
-void MyMessage::setM_Type(int M_Type)
+void MyMessage::setReceived_Frames_Count(int Received_Frames_Count)
 {
-    this->M_Type = M_Type;
+    this->Received_Frames_Count = Received_Frames_Count;
 }
 
 int MyMessage::getChar_Count() const
@@ -407,7 +407,7 @@ const char *MyMessageDescriptor::getFieldName(int field) const
     }
     static const char *fieldNames[] = {
         "Seq_Num",
-        "M_Type",
+        "Received_Frames_Count",
         "Char_Count",
         "M_Payload",
         "mycheckbits",
@@ -422,7 +422,7 @@ int MyMessageDescriptor::findField(const char *fieldName) const
     omnetpp::cClassDescriptor *basedesc = getBaseClassDescriptor();
     int base = basedesc ? basedesc->getFieldCount() : 0;
     if (fieldName[0]=='S' && strcmp(fieldName, "Seq_Num")==0) return base+0;
-    if (fieldName[0]=='M' && strcmp(fieldName, "M_Type")==0) return base+1;
+    if (fieldName[0]=='R' && strcmp(fieldName, "Received_Frames_Count")==0) return base+1;
     if (fieldName[0]=='C' && strcmp(fieldName, "Char_Count")==0) return base+2;
     if (fieldName[0]=='M' && strcmp(fieldName, "M_Payload")==0) return base+3;
     if (fieldName[0]=='m' && strcmp(fieldName, "mycheckbits")==0) return base+4;
@@ -516,11 +516,11 @@ std::string MyMessageDescriptor::getFieldValueAsString(void *object, int field, 
     MyMessage *pp = (MyMessage *)object; (void)pp;
     switch (field) {
         case 0: return long2string(pp->getSeq_Num());
-        case 1: return long2string(pp->getM_Type());
+        case 1: return long2string(pp->getReceived_Frames_Count());
         case 2: return long2string(pp->getChar_Count());
         case 3: return oppstring2string(pp->getM_Payload());
-        case 4: {return pp->getMycheckbits().to_string();}
-        case 5: {return long2string(pp->getE_Type());}
+        case 4: return pp->getMycheckbits().to_string();
+        case 5: return long2string(pp->getE_Type());
         case 6: return long2string(pp->getAck());
         default: return "";
     }
@@ -537,7 +537,7 @@ bool MyMessageDescriptor::setFieldValueAsString(void *object, int field, int i, 
     MyMessage *pp = (MyMessage *)object; (void)pp;
     switch (field) {
         case 0: pp->setSeq_Num(string2long(value)); return true;
-        case 1: pp->setM_Type(string2long(value)); return true;
+        case 1: pp->setReceived_Frames_Count(string2long(value)); return true;
         case 2: pp->setChar_Count(string2long(value)); return true;
         case 3: pp->setM_Payload((value)); return true;
         case 6: pp->setAck(string2long(value)); return true;

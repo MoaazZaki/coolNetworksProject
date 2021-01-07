@@ -8,17 +8,15 @@ network Network
 {
     parameters:
         int numberofNodes = default(6);
-		//volatile double RESTART @unit(s) = default(7.0s);
         @display("bgb=359,163");
         *.numberofNodes = numberofNodes;
+        *.fcount=3;
     submodules:
         parent: Parent {
-            //n=numberofNodes;
             @display("p=242.15001,52.605");
         }
 
         nodes[numberofNodes]: Node {
-			//n=numberofNodes;
             @display("p=80.995,60.955");
         }
 

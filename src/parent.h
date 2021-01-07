@@ -8,9 +8,15 @@
 #define __COOLNETWORKSPROJECT_PARENT_H_
 
 #include <omnetpp.h>
+#include <fstream>
+#include <string>
+#include <iostream>
+
 #include "MyMessage_m.h"
+#include "fileReader.h"
 
 #define MAX 50
+#define FILES_PATH "input\\file"
 using namespace omnetpp;
 
 class Parent : public cSimpleModule
@@ -18,6 +24,7 @@ class Parent : public cSimpleModule
   protected:
     int n;
     bool isPaired[MAX];
+    int filesCount;
 
     void scheduleNewPair();
     int generateRandomIndex();

@@ -21,14 +21,17 @@
 #include <stdio.h>
 #include <vector>
 #include "MyMessage_m.h"
+#include "fileReader.h"
 using namespace omnetpp;
-
-enum eventType {NETWORK_LAYER_READY,FRAME_ARRIVAL,ERR,TIMEOUT};
 
 class Node : public cSimpleModule
 {
     int n;
     int currentPeerIndex;
+    std::string fileName;
+    int framesCount;
+    fileReader fileReaderi;
+
     int next_frame_to_send; //si
     int ack_expected; //sf
     int frame_expected; // Last revieced ack
