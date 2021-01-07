@@ -7,6 +7,7 @@
 
 Define_Module(Parent);
 
+/* Intializes parent by setting necessary vars & scheduling a new pair*/
 void Parent::initialize()
 {
     //Schedule a new pair
@@ -16,6 +17,7 @@ void Parent::initialize()
     scheduleNewPair();
 }
 
+/*Generates a random index for a pair in condition it's not used before*/
 int Parent::generateRandomIndex()
 {
     //TODO::handle if all are used
@@ -28,6 +30,7 @@ int Parent::generateRandomIndex()
     return index;
 }
 
+/*Schedules a new pair for transmission*/
 void Parent::scheduleNewPair()
 {
     int index1=generateRandomIndex();
@@ -62,16 +65,22 @@ void Parent::scheduleNewPair()
 
     EV<<"Parent just made a pair ("<<index1<<","<<index2<<")\n";
     //Trigger rescheduling a pair
-    scheduleAt(simTime() + 100.0, new MyMessage(""));
+    scheduleAt(simTime() + 30, new MyMessage(""));
 }
 
+/*Handles message whether it's a self message or a message from a one of the nodes
+ * to signal end of tramission.
+ */
 void Parent::handleMessage(cMessage *msg)
 {
 
     if(msg->isSelfMessage())
     {
+        //schedule a new pair with probability 50%
         EV<<"Parent received self message\n";
-        scheduleNewPair();
+        int prob=uniform(0,1)*5;
+        if(prob>2)
+            scheduleNewPair();
     }
     else
     {

@@ -1,23 +1,10 @@
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-// 
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-// 
-// You should have received a copy of the GNU Lesser General Public License
-// along with this program.  If not, see http://www.gnu.org/licenses/.
-// 
-
 #include "Node.h"
 Define_Module(Node);
 
+/*Resets data members of node in order to begin new transmission*/
 void Node::reset()
 {
+    //Reseting Go-back-N variables
     ack_expected = 0;
     next_frame_to_send = 0;
     frame_expected = 0;
@@ -33,6 +20,7 @@ void Node::reset()
     errorEvent = new MyMessage("Error");
     errorEvent->setE_Type(ERR);
 
+    //Filling in messages Buffer to begin Transmission
     buffer.clear();
     std::vector<std::string> messages=fileReaderi.readFile(fileName);
     for(int i=0;i<messages.size();i++)
@@ -40,39 +28,11 @@ void Node::reset()
         buffer.push_back(createMessage(messages[i]));
         EV<<"added message\n";
     }
+
     //appending buffer with empty frames if frames to receive are > frames to send
     for(int i=messages.size();i<framesCount;i++)
         buffer.push_back(createMessage(""));
 
-    /*
-    // creating random content for communication
-    int rand=uniform(0,1)*6;
-    if ( rand>3)
-    {
-        buffer.push_back(createMessage("HI"));
-        buffer.push_back(createMessage("How are you ?"));
-        buffer.push_back(createMessage("It's great !"));
-        buffer.push_back(createMessage("Can you hear me ?"));
-        buffer.push_back(createMessage("yessss"));
-        buffer.push_back(createMessage(":')"));
-        buffer.push_back(createMessage("Can you kill me ?"));
-        buffer.push_back(createMessage("I'm bored"));
-        buffer.push_back(createMessage("Thanks"));
-        buffer.push_back(createMessage("Sad"));
-    }
-    else{
-        buffer.push_back(createMessage("HELLO"));
-        buffer.push_back(createMessage("How is your day ?"));
-        buffer.push_back(createMessage("I'm good"));
-        buffer.push_back(createMessage("Yes !"));
-        buffer.push_back(createMessage("Can you ?"));
-        buffer.push_back(createMessage(":'D"));
-        buffer.push_back(createMessage("Why?"));
-        buffer.push_back(createMessage("okay sure"));
-        buffer.push_back(createMessage("but I can't"));
-        buffer.push_back(createMessage("yeah very sad"));
-    }
-    */
     timeoutBuffer.resize(buffer.size());
 }
 
@@ -242,7 +202,6 @@ void Node::cencelTimeout(int ack)
 
 void Node::initialize()
 {
-    //reset();
     n=getParentModule()->par("numberofNodes");
     currentPeerIndex=-1;
 }
@@ -256,6 +215,7 @@ void Node::handleMessage(cMessage *msg)
         index=msg->getArrivalGate()->getIndex();
         EV<<"Received message from "<<index<<endl;
     }
+
     //Message is from parent to initialize sending
     if(index==n-1)
     {
@@ -273,6 +233,8 @@ void Node::handleMessage(cMessage *msg)
         // Start scheduling
         createMessageEvent();
     }
+
+    //Message is from pear
     else
     {
         //receive message from peer

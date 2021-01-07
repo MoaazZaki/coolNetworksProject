@@ -1,28 +1,16 @@
 //
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-// 
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-// 
-// You should have received a copy of the GNU Lesser General Public License
-// along with this program.  If not, see http://www.gnu.org/licenses/.
-// 
+ #include "fileReader.h"
 
-#include "fileReader.h"
-
+/*Empty cctrs*/
 fileReader::fileReader() {
 
 }
 
+/*Empty destructor*/
 fileReader::~fileReader() {
 }
 
-
+/*Counts the number of lines in a given file*/
 int fileReader::countLines(std::string fileName)
 {
     std::ifstream file;
@@ -42,6 +30,9 @@ int fileReader::countLines(std::string fileName)
 
 }
 
+/*Reads the content of a file and returns a vector of strings,
+ * where each line is an element in the vector.
+ */
 std::vector<std::string> fileReader::readFile (std::string fileName)
 {
         std::vector<std::string> messages;
