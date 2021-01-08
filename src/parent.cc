@@ -15,6 +15,7 @@ void Parent::initialize()
     filesCount=par("fcount");
     memset(isPaired,n,false);
     scheduleNewPair();
+    scheduleAt(simTime() + 7, new MyMessage(""));
 }
 
 /*Generates a random index for a pair in condition it's not used before*/
@@ -64,8 +65,6 @@ void Parent::scheduleNewPair()
     send(msg1,"out",index2);
 
     EV<<"Parent just made a pair ("<<index1<<","<<index2<<")\n";
-    //Trigger rescheduling a pair
-    scheduleAt(simTime() + 30, new MyMessage(""));
 }
 
 /*Handles message whether it's a self message or a message from a one of the nodes
@@ -81,6 +80,9 @@ void Parent::handleMessage(cMessage *msg)
         int prob=uniform(0,1)*5;
         if(prob>2)
             scheduleNewPair();
+
+        //Trigger rescheduling a pair
+        scheduleAt(simTime() + 7, new MyMessage(""));
     }
     else
     {
