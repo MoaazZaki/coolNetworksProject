@@ -4,12 +4,13 @@
  */
 
 #include "parent.h"
-
+#include "Node.h"
 Define_Module(Parent);
 
 /* Intializes parent by setting necessary vars & scheduling a new pair*/
 void Parent::initialize()
 {
+
     //Schedule a new pair
     n=par("numberofNodes");
     filesCount=par("fcount");
@@ -24,9 +25,17 @@ int Parent::generateRandomIndex()
     //TODO::handle if all are used
     //int count=1;
     int index=uniform(0,1)*(n-1);
-    while(isPaired[index])
-         index=uniform(0,1)*(n-1);
+    //Modified here (Ahmed)
+    int dummy_counter = 0;
+    while(isPaired[index] && dummy_counter < 100)
+    {
 
+         index=uniform(0,1)*(n-1);
+         dummy_counter += 1;
+    }
+    if(isPaired[index])
+        return -1;
+    //////
     isPaired[index]=true;
     return index;
 }
@@ -36,6 +45,11 @@ void Parent::scheduleNewPair()
 {
     int index1=generateRandomIndex();
     int index2=generateRandomIndex();
+
+    //Modified here (Ahmad)
+    if(index1 == -1 || index2 == -1)
+        return;
+    //
 
     //getting a random file number for each peer
     fileReader fileR;
