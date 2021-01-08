@@ -29,6 +29,14 @@ using namespace omnetpp;
 
 class Node : public cSimpleModule
 {
+    //Statistics
+    int total_generated_frames;
+    int total_dropped_frames;
+    int total_retransmitted_frames;
+    int useful_data;
+    int total_Acks;
+    int total_Nacks;
+
     //Necessary data members for tranmission
 
 

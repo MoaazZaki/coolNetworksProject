@@ -155,6 +155,7 @@ MyMessage* Node::createMessage(std::string inp) // Create new message given stri
 
 void Node::sendNewMessage(int frame_nr,int frame_expected,std::vector<MyMessage*> buffer)
 {
+    EV << "static "<< total_generated_frames << endl;
     EV<<"Node sending message\n";
     MyMessage* message = buffer[frame_nr+dynamic_window_start]->dup();
     message->setSeq_Num(frame_nr+dynamic_window_start);
@@ -191,11 +192,13 @@ void Node::sendNewMessage(int frame_nr,int frame_expected,std::vector<MyMessage*
     double dup_limit = par("dup_limit").doubleValue();
 
     //Debug
+    /*
     EV<< " delay_amount "<< std::to_string(delay_amount)<<endl;
     EV<< " delay_limit "<< std::to_string(delay_limit)<<endl;
     EV<< " corr_limit "<< std::to_string(corr_limit)<<endl;
     EV<< " dup_limit "<< std::to_string(dup_limit)<<endl;
     EV<< " loss_limit "<< std::to_string(loss_limit)<<endl;
+    */
     //
 
     // Corrupt or not
@@ -205,17 +208,6 @@ void Node::sendNewMessage(int frame_nr,int frame_expected,std::vector<MyMessage*
     {
         corruption = true;
         EV<< getName()<<" has an ERROR (Corruption)!"<<endl;
-
-        /*
-       std::string inp = message->getM_Payload();
-       if(inp != ""){
-       EV<< getName()<<" has an ERROR (Corruption)!"<<endl;
-       int rand_index = uniform(0,1)*100 ;
-
-       rand_index = rand_index % inp.size();
-       inp[rand_index]=inp[rand_index]+5;
-       message->setM_Payload(inp.c_str());
-       }*/
     }
 
     //Send or drop
@@ -226,29 +218,25 @@ void Node::sendNewMessage(int frame_nr,int frame_expected,std::vector<MyMessage*
 
         EV<< getName()<<" has an ERROR (Drop)!"<<endl;
         loss = true;
-    }/*
-    else
-    {
-        send(message,"out",currentPeerIndex);
-    }*/
+    }
 
     //Duplicate or not (separately i.e the probability will just send one additional packet or not)
     rand=uniform(0,1)*10;
     EV<< " Rand is (Duplication) "<< std::to_string(rand)<<endl;
     if(rand < dup_limit) //value will be parameterized
     {
+
         EV<< getName()<<" has an ERROR (Duplication)!"<<endl;
         duplicate = true;
-        //send(message,"out",currentPeerIndex);
     }
 
     rand=uniform(0,1)*10;
     EV<< " Rand is (Delay) "<< std::to_string(rand)<<endl;
     if(rand < delay_limit) //value will be parameterized
     {
+
         EV<< getName()<<" has an ERROR (delay)!"<<endl;
         delay = true;
-        //send(message,"out",currentPeerIndex);
     }
 
     if(!loss && !duplicate && !delay && !corruption) //1. Normal case (Error free)
@@ -261,7 +249,6 @@ void Node::sendNewMessage(int frame_nr,int frame_expected,std::vector<MyMessage*
        if(inp != ""){
        //EV<< getName()<<" has an ERROR (Corruption)!"<<endl;
        int rand_index = uniform(0,1)*100 ;
-
        rand_index = rand_index % inp.size();
        inp[rand_index]=inp[rand_index]+5;
        message->setM_Payload(inp.c_str());
@@ -377,6 +364,10 @@ void Node::ResendMessage(int frame_nr,int frame_expected,std::vector<MyMessage*>
     MyMessage* message = buffer[frame_nr+dynamic_window_start]->dup();
     message->setSeq_Num(frame_nr+dynamic_window_start);
     message->setAck((frame_expected +buffer.size()) % (buffer.size() +1));
+
+    //stats
+    total_retransmitted_frames ++;
+
     send(message,"out",currentPeerIndex);
 
     //ASSUME error free on re-sending any message
@@ -402,6 +393,12 @@ void Node::cencelTimeout(int ack)
 
 void Node::initialize()
 {
+    total_generated_frames = 0;
+    total_dropped_frames = 0; //Dropped at sender or receiver?
+    total_retransmitted_frames = 0;
+    useful_data = 0;
+    total_Acks = 0;
+    total_Nacks = 0;
     //reset();
     n=getParentModule()->par("numberofNodes");
     currentPeerIndex=-1;
@@ -426,7 +423,7 @@ void Node::handleMessage(cMessage *msg)
         if(currentPeerIndex>getIndex())
             currentPeerIndex--;
 
-        EV<<"Node received intialization message from parent, peer index is "<<mmsg->getSeq_Num()<<" "<<currentPeerIndex;
+        EV<<"Node received initialization message from parent, peer index is "<<mmsg->getSeq_Num()<<" "<<currentPeerIndex<<endl;
         EV<<"file path: "<<fileName<<"\n";
         reset();
         // Start scheduling
@@ -559,6 +556,7 @@ void Node::receiveMessageFromPeer(MyMessage *mmsg)
                 EV<< next_frame_to_send + dynamic_window_start<<endl;
                 for(int i=1; i<=nbuffered; i++)
                 {
+
                     ResendMessage(next_frame_to_send,frame_expected,buffer);
                     EV<< "Message with seq "<<next_frame_to_send + dynamic_window_start<<" has been re-sent"<<endl;
                     inc(next_frame_to_send,0);
