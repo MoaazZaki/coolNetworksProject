@@ -30,14 +30,14 @@ using namespace omnetpp;
 class Node : public cSimpleModule
 {
     //Statistics
-    int total_generated_frames;
-    int total_dropped_frames;
-    int total_retransmitted_frames;
-    int useful_data;
-    int total_Acks;
-    int total_Nacks;
+    double total_generated_frames; //Total sent at the sender side
+    double total_dropped_frames;    //Total dropped at the sender side
+    double total_retransmitted_frames;  //Total frames retransmitted due to noise in channel
+    double useful_data; //data received and accepted at receiver
+    double total_Acks;  //Same as no. of generated frames (As it can be sent more than one time if message is retransmitted)
+    double total_Nacks; //zero
 
-    //Necessary data members for tranmission
+    //Necessary data members for transmission
 
 
     int n;
@@ -49,7 +49,7 @@ class Node : public cSimpleModule
     //Go back-N data members
     int next_frame_to_send; //si
     int ack_expected; //sf
-    int frame_expected; // Last revieced ack
+    int frame_expected; // Last received ack
     int dynamic_window_start;
 
     //Messages buffers
@@ -89,9 +89,48 @@ class Node : public cSimpleModule
     bool between(int sf,int si,int sn);
     void inc(int&seq,int op);
     //virtual void initialize();
+    void printStats();
     void receiveMessageFromPeer(MyMessage *mmsg);
     //virtual void handleMessage(cMessage *msg);
     virtual void finish();
+
+    //Stat functions
+    //Setters
+    /*
+    static void inc_total_retransmitted_frames()
+    {
+        Node::total_retransmitted_frames += 1;
+    }
+    static void inc_total_generated_frames()
+    {
+        Node::total_generated_frames += 1;
+    }
+
+    static void inc_total_dropped_frames()
+    {
+        Node::total_dropped_frames += 1;
+    }
+    static void inc_useful_data()
+    {
+        Node::useful_data += 1;
+    }
+    static void inc_total_Acks()
+    {
+        Node::total_Acks += 1;
+    }
+    static void inc_total_Nacks()
+    {
+        Node::total_Nacks += 1;
+    }
+    */
+    //getters
+    /*
+    static int get_total_generated_frames()
+    {
+        int result = Node::total_generated_frames;
+        return result;
+        //return -1;
+    }*/
 
 };
 

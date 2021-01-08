@@ -18,6 +18,20 @@ Define_Module(Node);
 
 /*Resets data members of node in order to begin new transmission*/
 
+
+void Node::printStats()
+{
+    EV << "Printing statistics for current Node " <<endl;
+    EV << "Total generated frames: " << total_generated_frames<<endl;
+    EV << "Total dropped frames: "<< total_dropped_frames<<endl;
+    EV << "Total retransmitted frames: " << total_retransmitted_frames<<endl;
+    EV << "Total useful frames: " << useful_data<<endl;
+    EV << "Total Acks: " << total_generated_frames<<endl;
+    EV << "Total Nacks: " << total_Nacks<<endl;
+    EV << "Percentage of useful data/whole data: "<< (useful_data / ( total_generated_frames + total_dropped_frames )) << endl;
+
+}
+
 void Node::reset()
 {
         //Reseting Go-back-N variables
@@ -155,7 +169,7 @@ MyMessage* Node::createMessage(std::string inp) // Create new message given stri
 
 void Node::sendNewMessage(int frame_nr,int frame_expected,std::vector<MyMessage*> buffer)
 {
-    EV << "static "<< total_generated_frames << endl;
+    //EV << "static "<< Node::get_total_generated_frames() << endl;
     EV<<"Node sending message\n";
     MyMessage* message = buffer[frame_nr+dynamic_window_start]->dup();
     message->setSeq_Num(frame_nr+dynamic_window_start);
@@ -242,6 +256,8 @@ void Node::sendNewMessage(int frame_nr,int frame_expected,std::vector<MyMessage*
     if(!loss && !duplicate && !delay && !corruption) //1. Normal case (Error free)
     {
         send(message,"out",currentPeerIndex);
+        //Increment no of generated frames
+        total_generated_frames += 1;
     }
     else if(!loss && !duplicate && !delay && corruption) //2.Corruption only
     {
@@ -254,10 +270,14 @@ void Node::sendNewMessage(int frame_nr,int frame_expected,std::vector<MyMessage*
        message->setM_Payload(inp.c_str());
        }
        send(message,"out",currentPeerIndex);
+       //Increment no of generated frames
+       total_generated_frames += 1;
     }
     else if(!loss && !duplicate && delay && !corruption) //3. Delay only
     {
         sendDelayed(message, delay_amount, "out",currentPeerIndex);
+        //Increment no of generated frames
+        total_generated_frames += 1;
     }
     else if(!loss && !duplicate && delay && corruption) //4.Corruption + delay
     {
@@ -273,11 +293,15 @@ void Node::sendNewMessage(int frame_nr,int frame_expected,std::vector<MyMessage*
         }
         //Delay
         sendDelayed(message, delay_amount, "out",currentPeerIndex);
+        //Increment no of generated frames
+        total_generated_frames += 1;
     }
     else if(!loss && duplicate && !delay && !corruption) //5.Duplication only
     {
         send(message,"out",currentPeerIndex);
         send(shadow_message,"out",currentPeerIndex);
+        //Increment no of generated frames (Twice)
+        total_generated_frames += 2;
     }
     else if(!loss && duplicate && !delay && corruption) //6. Duplication + corruption
     {
@@ -294,11 +318,15 @@ void Node::sendNewMessage(int frame_nr,int frame_expected,std::vector<MyMessage*
         send(message,"out",currentPeerIndex);
         //Duplication
         send(shadow_message,"out",currentPeerIndex);
+        //Increment no of generated frames (Twice)
+        total_generated_frames += 2;
     }
     else if(!loss && duplicate && delay && !corruption) //7. Duplication + delay (assuming constant delay)
     {
         sendDelayed(message, delay_amount, "out",currentPeerIndex);
         sendDelayed(shadow_message, delay_amount, "out",currentPeerIndex);
+        //Increment no of generated frames (Twice)
+        total_generated_frames += 2;
     }
     else if(!loss && duplicate && delay && corruption) //8. Corruption + delay + duplicate
     {
@@ -315,38 +343,56 @@ void Node::sendNewMessage(int frame_nr,int frame_expected,std::vector<MyMessage*
         //Delay + duplication
         sendDelayed(message, delay_amount, "out",currentPeerIndex);
         sendDelayed(shadow_message, delay_amount, "out",currentPeerIndex);
+        //Increment no of generated frames (Twice)
+        total_generated_frames += 2;
     }
     else if(loss && !duplicate && !delay && !corruption) //9. Loss
     {
         //Nothing
+        //increment number of dropped frames
+        total_dropped_frames += 1;
     }
     else if(loss && !duplicate && !delay && corruption) //10. Corruption + Loss
     {
         //Nothing
+        //increment number of dropped frames
+        total_dropped_frames += 1;
     }
     else if(loss && !duplicate && delay && !corruption) //11. Delay + Loss
     {
         //Nothing
+        //increment number of dropped frames
+        total_dropped_frames += 1;
     }
     else if(loss && !duplicate && delay && corruption) //12. Corruption + Delay + Loss
     {
         //Nothing
+        //increment number of dropped frames
+        total_dropped_frames += 1;
     }
     else if(loss && duplicate && !delay && !corruption) //13. Duplication + loss (Loss dominates i.e both are lost)
     {
         //Nothing
+        //increment number of dropped frames
+        total_dropped_frames += 1;
     }
     else if(loss && duplicate && !delay && corruption) //14. Corruption + duplication + loss
     {
         //Nothing
+        //increment number of dropped frames
+        total_dropped_frames += 1;
     }
     else if(loss && duplicate && delay && !corruption) //15. Delay + duplication + loss
     {
         //Nothing
+        //increment number of dropped frames
+        total_dropped_frames += 1;
     }
     else if(loss && duplicate && delay && corruption) //16. All kind of errors
     {
         //Nothing
+        //increment number of dropped frames
+        total_dropped_frames += 1;
     }
 
       //START TIMER
@@ -365,8 +411,10 @@ void Node::ResendMessage(int frame_nr,int frame_expected,std::vector<MyMessage*>
     message->setSeq_Num(frame_nr+dynamic_window_start);
     message->setAck((frame_expected +buffer.size()) % (buffer.size() +1));
 
-    //stats
-    total_retransmitted_frames ++;
+    //Increase count of both retransmitted frames and generated frames
+    total_retransmitted_frames += 1;
+    total_generated_frames += 1;
+
 
     send(message,"out",currentPeerIndex);
 
@@ -484,8 +532,10 @@ void Node::receiveMessageFromPeer(MyMessage *mmsg)
                         EV<< mmsg->getM_Payload();
                         EV<<" and ack of: ";
                         EV<< mmsg->getAck();
+                        EV <<endl;
 
-
+                        //Increment useful data
+                        useful_data += 1;
 
                         /*while(between(ack_expected+dynamic_window_start,mmsg->getAck(),next_frame_to_send+dynamic_window_start))
                         {
@@ -540,6 +590,12 @@ void Node::receiveMessageFromPeer(MyMessage *mmsg)
 
                     //TODO::send to parent
                     MyMessage* parentMsg=new MyMessage(" ");
+
+                    //Debug
+                    printStats();
+                    //EV << "Just finished and calling parent" << endl;
+                    //
+
                     send(parentMsg,"out",n-1);
                 }
 
