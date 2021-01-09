@@ -59,9 +59,13 @@ class Node : public cSimpleModule
     std::vector<MyMessage*> timeoutBuffer;
     MyMessage*  timeoutEvent;
 
+
+
     MyMessage*  newMessageEvent;
     MyMessage*  errorEvent;
+    MyMessage*  finishEvent;
 
+    bool statsPrinted;
     //
     /*
     double delay_amount = default(0.2);

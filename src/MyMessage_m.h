@@ -40,7 +40,7 @@ typedef  int event;
  * }
  * </pre>
  */
-enum eventType {NETWORK_LAYER_READY,FRAME_ARRIVAL,ERR,TIMEOUT,CONTROL};
+enum eventType {NETWORK_LAYER_READY,FRAME_ARRIVAL,ERR,TIMEOUT,CONTROL,FINISH};
 
 class MyMessage : public ::omnetpp::cPacket
 {
