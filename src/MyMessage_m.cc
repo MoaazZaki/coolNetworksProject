@@ -177,24 +177,26 @@ inline std::ostream& operator<<(std::ostream& out, const std::vector<T,A>& vec)
     return out;
 }
 
-MyMessage_Base::MyMessage_Base(const char *name, short kind) : ::omnetpp::cPacket(name,kind)
+Register_Class(MyMessage)
+
+MyMessage::MyMessage(const char *name, short kind) : ::omnetpp::cPacket(name,kind)
 {
     this->Seq_Num = 0;
-    this->M_Type = 0;
+    this->Received_Frames_Count = 0;
     this->Char_Count = 0;
     this->ack = 0;
 }
 
-MyMessage_Base::MyMessage_Base(const MyMessage_Base& other) : ::omnetpp::cPacket(other)
+MyMessage::MyMessage(const MyMessage& other) : ::omnetpp::cPacket(other)
 {
     copy(other);
 }
 
-MyMessage_Base::~MyMessage_Base()
+MyMessage::~MyMessage()
 {
 }
 
-MyMessage_Base& MyMessage_Base::operator=(const MyMessage_Base& other)
+MyMessage& MyMessage::operator=(const MyMessage& other)
 {
     if (this==&other) return *this;
     ::omnetpp::cPacket::operator=(other);
@@ -202,10 +204,10 @@ MyMessage_Base& MyMessage_Base::operator=(const MyMessage_Base& other)
     return *this;
 }
 
-void MyMessage_Base::copy(const MyMessage_Base& other)
+void MyMessage::copy(const MyMessage& other)
 {
     this->Seq_Num = other.Seq_Num;
-    this->M_Type = other.M_Type;
+    this->Received_Frames_Count = other.Received_Frames_Count;
     this->Char_Count = other.Char_Count;
     this->M_Payload = other.M_Payload;
     this->mycheckbits = other.mycheckbits;
@@ -213,11 +215,11 @@ void MyMessage_Base::copy(const MyMessage_Base& other)
     this->ack = other.ack;
 }
 
-void MyMessage_Base::parsimPack(omnetpp::cCommBuffer *b) const
+void MyMessage::parsimPack(omnetpp::cCommBuffer *b) const
 {
     ::omnetpp::cPacket::parsimPack(b);
     doParsimPacking(b,this->Seq_Num);
-    doParsimPacking(b,this->M_Type);
+    doParsimPacking(b,this->Received_Frames_Count);
     doParsimPacking(b,this->Char_Count);
     doParsimPacking(b,this->M_Payload);
     doParsimPacking(b,this->mycheckbits);
@@ -225,11 +227,11 @@ void MyMessage_Base::parsimPack(omnetpp::cCommBuffer *b) const
     doParsimPacking(b,this->ack);
 }
 
-void MyMessage_Base::parsimUnpack(omnetpp::cCommBuffer *b)
+void MyMessage::parsimUnpack(omnetpp::cCommBuffer *b)
 {
     ::omnetpp::cPacket::parsimUnpack(b);
     doParsimUnpacking(b,this->Seq_Num);
-    doParsimUnpacking(b,this->M_Type);
+    doParsimUnpacking(b,this->Received_Frames_Count);
     doParsimUnpacking(b,this->Char_Count);
     doParsimUnpacking(b,this->M_Payload);
     doParsimUnpacking(b,this->mycheckbits);
@@ -237,77 +239,75 @@ void MyMessage_Base::parsimUnpack(omnetpp::cCommBuffer *b)
     doParsimUnpacking(b,this->ack);
 }
 
-int MyMessage_Base::getSeq_Num() const
+int MyMessage::getSeq_Num() const
 {
     return this->Seq_Num;
 }
 
-void MyMessage_Base::setSeq_Num(int Seq_Num)
+void MyMessage::setSeq_Num(int Seq_Num)
 {
     this->Seq_Num = Seq_Num;
 }
 
-int MyMessage_Base::getM_Type() const
+int MyMessage::getReceived_Frames_Count() const
 {
-    return this->M_Type;
+    return this->Received_Frames_Count;
 }
 
-void MyMessage_Base::setM_Type(int M_Type)
+void MyMessage::setReceived_Frames_Count(int Received_Frames_Count)
 {
-    this->M_Type = M_Type;
+    this->Received_Frames_Count = Received_Frames_Count;
 }
 
-int MyMessage_Base::getChar_Count() const
+int MyMessage::getChar_Count() const
 {
     return this->Char_Count;
 }
 
-void MyMessage_Base::setChar_Count(int Char_Count)
+void MyMessage::setChar_Count(int Char_Count)
 {
     this->Char_Count = Char_Count;
 }
 
-const char * MyMessage_Base::getM_Payload() const
+const char * MyMessage::getM_Payload() const
 {
     return this->M_Payload.c_str();
 }
 
-void MyMessage_Base::setM_Payload(std::string M_Payload)
+void MyMessage::setM_Payload(const char * M_Payload)
 {
     this->M_Payload = M_Payload;
 }
 
-bits& MyMessage_Base::getMycheckbits()
+bits& MyMessage::getMycheckbits()
 {
     return this->mycheckbits;
 }
 
-void MyMessage_Base::setMycheckbits(const bits& mycheckbits)
+void MyMessage::setMycheckbits(const bits& mycheckbits)
 {
     this->mycheckbits = mycheckbits;
 }
 
-event& MyMessage_Base::getE_Type()
+event& MyMessage::getE_Type()
 {
     return this->E_Type;
 }
 
-void MyMessage_Base::setE_Type(const event& E_Type)
+void MyMessage::setE_Type(const event& E_Type)
 {
     this->E_Type = E_Type;
 }
 
-int MyMessage_Base::getAck() const
+int MyMessage::getAck() const
 {
     return this->ack;
 }
 
-void MyMessage_Base::setAck(int ack)
+void MyMessage::setAck(int ack)
 {
     this->ack = ack;
 }
-
-
 
 class MyMessageDescriptor : public omnetpp::cClassDescriptor
 {
@@ -351,13 +351,13 @@ MyMessageDescriptor::~MyMessageDescriptor()
 
 bool MyMessageDescriptor::doesSupport(omnetpp::cObject *obj) const
 {
-    return dynamic_cast<MyMessage_Base *>(obj)!=nullptr;
+    return dynamic_cast<MyMessage *>(obj)!=nullptr;
 }
 
 const char **MyMessageDescriptor::getPropertyNames() const
 {
     if (!propertynames) {
-        static const char *names[] = { "customize",  nullptr };
+        static const char *names[] = {  nullptr };
         omnetpp::cClassDescriptor *basedesc = getBaseClassDescriptor();
         const char **basenames = basedesc ? basedesc->getPropertyNames() : nullptr;
         propertynames = mergeLists(basenames, names);
@@ -367,7 +367,6 @@ const char **MyMessageDescriptor::getPropertyNames() const
 
 const char *MyMessageDescriptor::getProperty(const char *propertyname) const
 {
-    if (!strcmp(propertyname,"customize")) return "true";
     omnetpp::cClassDescriptor *basedesc = getBaseClassDescriptor();
     return basedesc ? basedesc->getProperty(propertyname) : nullptr;
 }
@@ -408,7 +407,7 @@ const char *MyMessageDescriptor::getFieldName(int field) const
     }
     static const char *fieldNames[] = {
         "Seq_Num",
-        "M_Type",
+        "Received_Frames_Count",
         "Char_Count",
         "M_Payload",
         "mycheckbits",
@@ -423,7 +422,7 @@ int MyMessageDescriptor::findField(const char *fieldName) const
     omnetpp::cClassDescriptor *basedesc = getBaseClassDescriptor();
     int base = basedesc ? basedesc->getFieldCount() : 0;
     if (fieldName[0]=='S' && strcmp(fieldName, "Seq_Num")==0) return base+0;
-    if (fieldName[0]=='M' && strcmp(fieldName, "M_Type")==0) return base+1;
+    if (fieldName[0]=='R' && strcmp(fieldName, "Received_Frames_Count")==0) return base+1;
     if (fieldName[0]=='C' && strcmp(fieldName, "Char_Count")==0) return base+2;
     if (fieldName[0]=='M' && strcmp(fieldName, "M_Payload")==0) return base+3;
     if (fieldName[0]=='m' && strcmp(fieldName, "mycheckbits")==0) return base+4;
@@ -486,7 +485,7 @@ int MyMessageDescriptor::getFieldArraySize(void *object, int field) const
             return basedesc->getFieldArraySize(object, field);
         field -= basedesc->getFieldCount();
     }
-    MyMessage_Base *pp = (MyMessage_Base *)object; (void)pp;
+    MyMessage *pp = (MyMessage *)object; (void)pp;
     switch (field) {
         default: return 0;
     }
@@ -500,7 +499,7 @@ const char *MyMessageDescriptor::getFieldDynamicTypeString(void *object, int fie
             return basedesc->getFieldDynamicTypeString(object,field,i);
         field -= basedesc->getFieldCount();
     }
-    MyMessage_Base *pp = (MyMessage_Base *)object; (void)pp;
+    MyMessage *pp = (MyMessage *)object; (void)pp;
     switch (field) {
         default: return nullptr;
     }
@@ -514,10 +513,10 @@ std::string MyMessageDescriptor::getFieldValueAsString(void *object, int field, 
             return basedesc->getFieldValueAsString(object,field,i);
         field -= basedesc->getFieldCount();
     }
-    MyMessage_Base *pp = (MyMessage_Base *)object; (void)pp;
+    MyMessage *pp = (MyMessage *)object; (void)pp;
     switch (field) {
         case 0: return long2string(pp->getSeq_Num());
-        case 1: return long2string(pp->getM_Type());
+        case 1: return long2string(pp->getReceived_Frames_Count());
         case 2: return long2string(pp->getChar_Count());
         case 3: return oppstring2string(pp->getM_Payload());
         case 4: return pp->getMycheckbits().to_string();
@@ -535,10 +534,10 @@ bool MyMessageDescriptor::setFieldValueAsString(void *object, int field, int i, 
             return basedesc->setFieldValueAsString(object,field,i,value);
         field -= basedesc->getFieldCount();
     }
-    MyMessage_Base *pp = (MyMessage_Base *)object; (void)pp;
+    MyMessage *pp = (MyMessage *)object; (void)pp;
     switch (field) {
         case 0: pp->setSeq_Num(string2long(value)); return true;
-        case 1: pp->setM_Type(string2long(value)); return true;
+        case 1: pp->setReceived_Frames_Count(string2long(value)); return true;
         case 2: pp->setChar_Count(string2long(value)); return true;
         case 3: pp->setM_Payload((value)); return true;
         case 6: pp->setAck(string2long(value)); return true;
@@ -569,13 +568,12 @@ void *MyMessageDescriptor::getFieldStructValuePointer(void *object, int field, i
             return basedesc->getFieldStructValuePointer(object, field, i);
         field -= basedesc->getFieldCount();
     }
-    MyMessage_Base *pp = (MyMessage_Base *)object; (void)pp;
+    MyMessage *pp = (MyMessage *)object; (void)pp;
     switch (field) {
         case 4: return (void *)(&pp->getMycheckbits()); break;
         case 5: return (void *)(&pp->getE_Type()); break;
         default: return nullptr;
     }
 }
-
 
 

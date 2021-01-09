@@ -25,13 +25,12 @@ typedef  int event;
 // }}
 
 /**
- * Class generated from <tt>MyMessage.msg:26</tt> by nedtool.
+ * Class generated from <tt>MyMessage.msg:9</tt> by nedtool.
  * <pre>
  * packet MyMessage
  * {
- *     \@customize(true);  // see the generated C++ header for more info
  *     int Seq_Num;
- *     int M_Type;
+ *     int Received_Frames_Count;
  *     int Char_Count;
  *     string M_Payload;
  *     bits mycheckbits;
@@ -40,88 +39,57 @@ typedef  int event;
  * 
  * }
  * </pre>
- *
- * MyMessage_Base is only useful if it gets subclassed, and MyMessage is derived from it.
- * The minimum code to be written for MyMessage is the following:
- *
- * <pre>
- * class MyMessage : public MyMessage_Base
- * {
- *   private:
- *     void copy(const MyMessage& other) { ... }
-
- *   public:
- *     MyMessage(const char *name=nullptr, short kind=0) : MyMessage_Base(name,kind) {}
- *     MyMessage(const MyMessage& other) : MyMessage_Base(other) {copy(other);}
- *     MyMessage& operator=(const MyMessage& other) {if (this==&other) return *this; MyMessage_Base::operator=(other); copy(other); return *this;}
- *     virtual MyMessage *dup() const override {return new MyMessage(*this);}
- *     // ADD CODE HERE to redefine and implement pure virtual functions from MyMessage_Base
- * };
- * </pre>
- *
- * The following should go into a .cc (.cpp) file:
- *
- * <pre>
- * Register_Class(MyMessage)
- * </pre>
  */
-class MyMessage_Base : public ::omnetpp::cPacket
+enum eventType {NETWORK_LAYER_READY,FRAME_ARRIVAL,ERR,TIMEOUT,CONTROL,FINISH};
+
+class MyMessage : public ::omnetpp::cPacket
 {
   protected:
     int Seq_Num;
-    int M_Type;
+    int Received_Frames_Count;
     int Char_Count;
-    std::string M_Payload;
+    ::omnetpp::opp_string M_Payload;
     bits mycheckbits;
     event E_Type;
     int ack;
+
   private:
-    void copy(const MyMessage_Base& other);
+    void copy(const MyMessage& other);
 
-  public:
+  protected:
     // protected and unimplemented operator==(), to prevent accidental usage
-    bool operator==(const MyMessage_Base&);
-    // make constructors protected to avoid instantiation
-    MyMessage_Base(const char *name=nullptr, short kind=0);
-    MyMessage_Base(const MyMessage_Base& other);
-    // make assignment operator protected to force the user override it
-    MyMessage_Base& operator=(const MyMessage_Base& other);
+    bool operator==(const MyMessage&);
 
   public:
-    virtual ~MyMessage_Base();
-    virtual MyMessage_Base *dup() const override {
-        MyMessage_Base* new_message = new MyMessage_Base;
-        new_message->setSeq_Num(Seq_Num);
-        new_message->setM_Type(M_Type);
-        new_message->setChar_Count(Char_Count);
-        new_message->setM_Payload(M_Payload);
-        new_message->setMycheckbits(mycheckbits);
-        new_message->setE_Type(E_Type);
-        new_message->setAck(ack);
-        return new_message;
-    }
+    MyMessage(const char *name=nullptr, short kind=0);
+    MyMessage(const MyMessage& other);
+    virtual ~MyMessage();
+    MyMessage& operator=(const MyMessage& other);
+    virtual MyMessage *dup() const override {return new MyMessage(*this);}
     virtual void parsimPack(omnetpp::cCommBuffer *b) const override;
     virtual void parsimUnpack(omnetpp::cCommBuffer *b) override;
 
     // field getter/setter methods
     virtual int getSeq_Num() const;
     virtual void setSeq_Num(int Seq_Num);
-    virtual int getM_Type() const;
-    virtual void setM_Type(int M_Type);
+    virtual int getReceived_Frames_Count() const;
+    virtual void setReceived_Frames_Count(int Received_Frames_Count);
     virtual int getChar_Count() const;
     virtual void setChar_Count(int Char_Count);
     virtual const char * getM_Payload() const;
-    virtual void setM_Payload(std::string M_Payload);
+    virtual void setM_Payload(const char * M_Payload);
     virtual bits& getMycheckbits();
-    virtual const bits& getMycheckbits() const {return const_cast<MyMessage_Base*>(this)->getMycheckbits();}
+    virtual const bits& getMycheckbits() const {return const_cast<MyMessage*>(this)->getMycheckbits();}
     virtual void setMycheckbits(const bits& mycheckbits);
     virtual event& getE_Type();
-    virtual const event& getE_Type() const {return const_cast<MyMessage_Base*>(this)->getE_Type();}
+    virtual const event& getE_Type() const {return const_cast<MyMessage*>(this)->getE_Type();}
     virtual void setE_Type(const event& E_Type);
     virtual int getAck() const;
     virtual void setAck(int ack);
-
 };
+
+inline void doParsimPacking(omnetpp::cCommBuffer *b, const MyMessage& obj) {obj.parsimPack(b);}
+inline void doParsimUnpacking(omnetpp::cCommBuffer *b, MyMessage& obj) {obj.parsimUnpack(b);}
 
 
 #endif // ifndef __MYMESSAGE_M_H

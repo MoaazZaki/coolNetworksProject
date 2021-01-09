@@ -1,3 +1,3 @@
-package section1.simulations;
+package coolNetworks.simulations;
 
 @license(LGPL);

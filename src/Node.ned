@@ -13,7 +13,7 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/.
 // 
 
-package section1;
+package coolNetworks;
 
 //
 // TODO auto-generated module
@@ -21,13 +21,23 @@ package section1;
 simple Node
 {
     parameters:
+        int numberofNodes;
         volatile int MAX_SEQ = default(7);
         volatile double TIMEOUT @unit(s) = default(2.0s);
         volatile double NEW_MESSAGE_TIME @unit(s) = default(1.0s);
-        
+        //parameters for errors
+	    //parameters for errors
+	    double delay_amount = default(0.2);
+	    //limit (percentage of errors) //would be changed from the ini files
+	    double corr_limit = default(3);
+	    double delay_limit = default(3);
+	    double loss_limit = default(3);
+	    double dup_limit = default(3);
+	    
     gates:
-        input in;
-        output out;
+        output out[];
+        input in[];
+        //inout parentConnection;
 
 }
 

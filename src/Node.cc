@@ -16,6 +16,73 @@
 #include "Node.h"
 Define_Module(Node);
 
+/*Resets data members of node in order to begin new transmission*/
+
+
+void Node::printStats()
+{
+    if(!statsPrinted)
+    {
+        statsPrinted = true;
+        EV << "\n------------------------------------------------------------------------------------\n";
+        EV << "Printing statistics for current Node " <<endl;
+        EV << "Total generated frames: " << total_generated_frames<<endl;
+        EV << "Total dropped frames: "<< total_dropped_frames<<endl;
+        EV << "Total retransmitted frames: " << total_retransmitted_frames<<endl;
+        EV << "Total useful frames: " << useful_data<<endl;
+        EV << "Total Acks: " << total_generated_frames<<endl;
+        EV << "Total Nacks: " << total_Nacks<<endl;
+        EV << "Percentage of useful data/whole data: "<< (useful_data / ( total_generated_frames + total_dropped_frames )) << endl;
+        EV << "\n------------------------------------------------------------------------------------\n";
+    }
+
+}
+
+void Node::reset()
+{
+        //Reseting Go-back-N variables
+
+    ack_expected = 0;
+    next_frame_to_send = 0;
+    frame_expected = 0;
+    nbuffered = 0;
+    dynamic_window_start = 0;
+    
+
+    timeoutEvent = new MyMessage("timeout");
+    timeoutEvent->setE_Type(TIMEOUT);
+
+    newMessageEvent = new MyMessage("New Message");
+    newMessageEvent->setE_Type(NETWORK_LAYER_READY);
+
+    errorEvent = new MyMessage("Error");
+    errorEvent->setE_Type(ERR);
+
+
+    finishEvent = new MyMessage("Finish");
+    finishEvent->setE_Type(FINISH);
+
+    //Filling in messages Buffer to begin Transmission
+    buffer.clear();
+    std::vector<std::string> messages=fileReaderi.readFile(fileName);
+    for(int i=0;i<messages.size();i++)
+    {
+        buffer.push_back(createMessage(messages[i]));
+        //EV<<"added message\n";
+    }
+
+    //appending buffer with empty frames if frames to receive are > frames to send
+    for(int i=messages.size();i<framesCount;i++)
+        buffer.push_back(createMessage(""));
+
+    timeoutBuffer.resize(buffer.size());
+
+    statsPrinted = false;
+}
+
+
+
+
 void Node::createMessageEvent()
 {
     if(nbuffered <= par("MAX_SEQ").intValue() && next_frame_to_send + dynamic_window_start != buffer.size())
@@ -30,7 +97,7 @@ void Node::inc(int&seq,int op)
     {
         case 0:
             if(seq < par("MAX_SEQ").intValue())
-                seq = (seq + 1 ) % (par("MAX_SEQ").intValue() + 1);
+                seq = (seq + 1 );// % (par("MAX_SEQ").intValue() + 1);
 
             /*if(seq + dynamic_window_start == buffer.size() )
             {
@@ -51,16 +118,7 @@ void Node::inc(int&seq,int op)
                     //seq = (seq + 1 ) % (buffer.size());
             }
             else*/
-            seq = (seq + 1 ) % (buffer.size());
-            /*if(seq == par("MAX_SEQ").intValue() && par("MAX_SEQ").intValue() + dynamic_window_start == buffer.size())
-            {
-                ack_expected = 0;
-                //next_frame_to_send = 0;
-                //frame_expected = 0;
-                //nbuffered = 0;
-                //dynamic_window_start = 0;
-            }*/
-
+            seq = (seq + 1 ); //% (buffer.size());
             break;
 
 
@@ -86,7 +144,7 @@ bool Node::between(int sf,int si,int sn) // Check if sf <= si < sn
     return (((sf <= si) && (si < sn)) || ((sn <sf) && (sf <= si)) || ((si < sn) && (sn < sf)));
 }
 
-MyMessage_Base* Node::createMessage(std::string inp) // Create new message given string
+MyMessage* Node::createMessage(std::string inp) // Create new message given string
 {
     //2) calculate the char count
     int size = inp.size() +2 ;
@@ -102,9 +160,9 @@ MyMessage_Base* Node::createMessage(std::string inp) // Create new message given
 
 
 
-    MyMessage_Base *mmsg = new MyMessage_Base(inp.c_str());
+    MyMessage *mmsg = new MyMessage(inp.c_str());
     mmsg->setM_Payload(inp.c_str());
-    mmsg->setM_Type(buffer.size()); // It's now a dummy variable so I'll use it in holding buffer size of the other side
+    //mmsg->setM_Type(buffer.size()); // It's now a dummy variable so I'll use it in holding buffer size of the other side
     mmsg->setChar_Count(size);
     mmsg->setMycheckbits(evenParity);
     mmsg->setE_Type(FRAME_ARRIVAL);
@@ -112,36 +170,236 @@ MyMessage_Base* Node::createMessage(std::string inp) // Create new message given
     return mmsg;
 }
 
-void Node::sendNewMessage(int frame_nr,int frame_expected,std::vector<MyMessage_Base*> buffer)
+void Node::sendNewMessage(int frame_nr,int frame_expected,std::vector<MyMessage*> buffer)
 {
-    MyMessage_Base* message = buffer[frame_nr+dynamic_window_start]->dup();
+    //EV << "static "<< Node::get_total_generated_frames() << endl;
+    EV<<"Node sending message " << frame_nr+dynamic_window_start <<endl;
+    MyMessage* message = buffer[frame_nr+dynamic_window_start]->dup();
     message->setSeq_Num(frame_nr+dynamic_window_start);
     message->setAck((frame_expected +buffer.size()) % (buffer.size() +1));
+    //message->setSeq_Num(0);
+    //Shadow message for duplication
+    MyMessage* shadow_message = buffer[frame_nr+dynamic_window_start]->dup();
+    shadow_message->setSeq_Num(frame_nr+dynamic_window_start);
+    shadow_message->setAck((frame_expected +buffer.size()) % (buffer.size() +1));
 
+
+    //flags for errors
+    bool loss = false;
+    bool duplicate = false;
+    bool delay = false;
+    bool corruption = false;
+
+    /*
+     * //parameters for errors
+    double delay_amount = 0.2;
+    //limit (percentage of errors) //would be changed from the ini files
+    double corr_limit = 3;
+    double delay_limit = 3;
+    double loss_limit = 3;
+    double dup_limit = 3;
+     *
+    */
+    //parameters for errors
+    double delay_amount = par("delay_amount").doubleValue();
+    //limit (percentage of errors) //would be changed from the ini files
+    double corr_limit = par("corr_limit").doubleValue();
+    double delay_limit = par("delay_limit").doubleValue();
+    double loss_limit = par("loss_limit").doubleValue();
+    double dup_limit = par("dup_limit").doubleValue();
+
+    //Debug
+    /*
+    EV<< " delay_amount "<< std::to_string(delay_amount)<<endl;
+    EV<< " delay_limit "<< std::to_string(delay_limit)<<endl;
+    EV<< " corr_limit "<< std::to_string(corr_limit)<<endl;
+    EV<< " dup_limit "<< std::to_string(dup_limit)<<endl;
+    EV<< " loss_limit "<< std::to_string(loss_limit)<<endl;
+    */
+    //
 
     // Corrupt or not
-    if(strcmp(getName(),"Tic")==0){
-        int rand=uniform(0,1)*10;
-        if(rand>=7)
-        {
-            EV<< getName()<<"MEOOOOOOOOOOOOOOOOOOW has an ERROR!"<<endl;
-           int rand_index = uniform(0,1)*100 ;
-           std::string inp = message->getM_Payload();
-           rand_index = rand_index % inp.size();
-           inp[rand_index]=inp[rand_index]+5;
-           message->setM_Payload(inp);
-
-
-        }
+    int rand=uniform(0,1)*10;
+    //EV<< " Rand is (corruption) "<< std::to_string(rand)<<endl;
+    if(rand < corr_limit) //value will be parameterized
+    {
+        corruption = true;
+        EV<< getName()<<" has an ERROR (Corruption)!"<<endl;
     }
 
     //Send or drop
-//    rand=uniform(0,1)*10;
-//    if(rand>3)
-        send(message,"out");
+    rand=uniform(0,1)*10;
+    //EV<< " Rand is (Drop) "<< std::to_string(rand)<<endl;
+    if(rand < loss_limit ) //value will be parameterized
+    {
+
+        EV<< getName()<<" has an ERROR (Drop)!"<<endl;
+        loss = true;
+    }
+
+    //Duplicate or not (separately i.e the probability will just send one additional packet or not)
+    rand=uniform(0,1)*10;
+    //EV<< " Rand is (Duplication) "<< std::to_string(rand)<<endl;
+    if(rand < dup_limit) //value will be parameterized
+    {
+
+        EV<< getName()<<" has an ERROR (Duplication)!"<<endl;
+        duplicate = true;
+    }
+
+    rand=uniform(0,1)*10;
+    //EV<< " Rand is (Delay) "<< std::to_string(rand)<<endl;
+    if(rand < delay_limit) //value will be parameterized
+    {
+
+        EV<< getName()<<" has an ERROR (delay)!"<<endl;
+        delay = true;
+    }
+
+    if(!loss && !duplicate && !delay && !corruption) //1. Normal case (Error free)
+    {
+        send(message,"out",currentPeerIndex);
+        //Increment no of generated frames
+        total_generated_frames += 1;
+    }
+    else if(!loss && !duplicate && !delay && corruption) //2.Corruption only
+    {
+       std::string inp = message->getM_Payload();
+       if(inp != ""){
+       //EV<< getName()<<" has an ERROR (Corruption)!"<<endl;
+       int rand_index = uniform(0,1)*100 ;
+       rand_index = rand_index % inp.size();
+       inp[rand_index]=inp[rand_index]+5;
+       message->setM_Payload(inp.c_str());
+       }
+       send(message,"out",currentPeerIndex);
+       //Increment no of generated frames
+       total_generated_frames += 1;
+    }
+    else if(!loss && !duplicate && delay && !corruption) //3. Delay only
+    {
+        sendDelayed(message, delay_amount, "out",currentPeerIndex);
+        //Increment no of generated frames
+        total_generated_frames += 1;
+    }
+    else if(!loss && !duplicate && delay && corruption) //4.Corruption + delay
+    {
+        //Corruption
+        std::string inp = message->getM_Payload();
+        if(inp != ""){
+       //EV<< getName()<<" has an ERROR (Corruption)!"<<endl;
+        int rand_index = uniform(0,1)*100 ;
+
+        rand_index = rand_index % inp.size();
+        inp[rand_index]=inp[rand_index]+5;
+        message->setM_Payload(inp.c_str());
+        }
+        //Delay
+        sendDelayed(message, delay_amount, "out",currentPeerIndex);
+        //Increment no of generated frames
+        total_generated_frames += 1;
+    }
+    else if(!loss && duplicate && !delay && !corruption) //5.Duplication only
+    {
+        send(message,"out",currentPeerIndex);
+        send(shadow_message,"out",currentPeerIndex);
+        //Increment no of generated frames (Twice)
+        total_generated_frames += 2;
+    }
+    else if(!loss && duplicate && !delay && corruption) //6. Duplication + corruption
+    {
+        //Corruption
+        std::string inp = message->getM_Payload();
+        if(inp != ""){
+        int rand_index = uniform(0,1)*100 ;
+
+        rand_index = rand_index % inp.size();
+        inp[rand_index]=inp[rand_index]+5;
+        message->setM_Payload(inp.c_str());
+        shadow_message->setM_Payload(inp.c_str());
+        }
+        send(message,"out",currentPeerIndex);
+        //Duplication
+        send(shadow_message,"out",currentPeerIndex);
+        //Increment no of generated frames (Twice)
+        total_generated_frames += 2;
+    }
+    else if(!loss && duplicate && delay && !corruption) //7. Duplication + delay (assuming constant delay)
+    {
+        sendDelayed(message, delay_amount, "out",currentPeerIndex);
+        sendDelayed(shadow_message, delay_amount, "out",currentPeerIndex);
+        //Increment no of generated frames (Twice)
+        total_generated_frames += 2;
+    }
+    else if(!loss && duplicate && delay && corruption) //8. Corruption + delay + duplicate
+    {
+        //Corruption
+        std::string inp = message->getM_Payload();
+        if(inp != ""){
+        int rand_index = uniform(0,1)*100 ;
+
+        rand_index = rand_index % inp.size();
+        inp[rand_index]=inp[rand_index]+5;
+        message->setM_Payload(inp.c_str());
+        shadow_message->setM_Payload(inp.c_str());
+        }
+        //Delay + duplication
+        sendDelayed(message, delay_amount, "out",currentPeerIndex);
+        sendDelayed(shadow_message, delay_amount, "out",currentPeerIndex);
+        //Increment no of generated frames (Twice)
+        total_generated_frames += 2;
+    }
+    else if(loss && !duplicate && !delay && !corruption) //9. Loss
+    {
+        //Nothing
+        //increment number of dropped frames
+        total_dropped_frames += 1;
+    }
+    else if(loss && !duplicate && !delay && corruption) //10. Corruption + Loss
+    {
+        //Nothing
+        //increment number of dropped frames
+        total_dropped_frames += 1;
+    }
+    else if(loss && !duplicate && delay && !corruption) //11. Delay + Loss
+    {
+        //Nothing
+        //increment number of dropped frames
+        total_dropped_frames += 1;
+    }
+    else if(loss && !duplicate && delay && corruption) //12. Corruption + Delay + Loss
+    {
+        //Nothing
+        //increment number of dropped frames
+        total_dropped_frames += 1;
+    }
+    else if(loss && duplicate && !delay && !corruption) //13. Duplication + loss (Loss dominates i.e both are lost)
+    {
+        //Nothing
+        //increment number of dropped frames
+        total_dropped_frames += 1;
+    }
+    else if(loss && duplicate && !delay && corruption) //14. Corruption + duplication + loss
+    {
+        //Nothing
+        //increment number of dropped frames
+        total_dropped_frames += 1;
+    }
+    else if(loss && duplicate && delay && !corruption) //15. Delay + duplication + loss
+    {
+        //Nothing
+        //increment number of dropped frames
+        total_dropped_frames += 1;
+    }
+    else if(loss && duplicate && delay && corruption) //16. All kind of errors
+    {
+        //Nothing
+        //increment number of dropped frames
+        total_dropped_frames += 1;
+    }
 
       //START TIMER
-      MyMessage_Base * currentTimeout = timeoutEvent->dup();
+      MyMessage * currentTimeout = timeoutEvent->dup();
       currentTimeout->setAck(message->getAck());
       currentTimeout->setSeq_Num(frame_nr+dynamic_window_start);
       currentTimeout->setChar_Count(0);
@@ -150,15 +408,21 @@ void Node::sendNewMessage(int frame_nr,int frame_expected,std::vector<MyMessage_
 
 }
 
-void Node::ResendMessage(int frame_nr,int frame_expected,std::vector<MyMessage_Base*> buffer)
+void Node::ResendMessage(int frame_nr,int frame_expected,std::vector<MyMessage*> buffer)
 {
-    MyMessage_Base* message = buffer[frame_nr+dynamic_window_start]->dup();
+    MyMessage* message = buffer[frame_nr+dynamic_window_start]->dup();
     message->setSeq_Num(frame_nr+dynamic_window_start);
     message->setAck((frame_expected +buffer.size()) % (buffer.size() +1));
-    send(message,"out");
+
+    //Increase count of both retransmitted frames and generated frames
+    total_retransmitted_frames += 1;
+    total_generated_frames += 1;
+
+
+    send(message,"out",currentPeerIndex);
 
     //ASSUME error free on re-sending any message
-//    MyMessage_Base * currentTimeout = timeoutEvent->dup();
+//    MyMessage * currentTimeout = timeoutEvent->dup();
 //    currentTimeout->setAck(message->getAck());
 //    currentTimeout->setSeq_Num(frame_nr+dynamic_window_start);
 //    scheduleAt(simTime() + par("TIMEOUT").doubleValue(), currentTimeout);
@@ -169,7 +433,7 @@ void Node::cencelTimeout(int ack)
 {
     if(timeoutBuffer[ack] == nullptr) return;
     //Send Cancel timeout event
-   /* MyMessage_Base * cancelTimeoutMessage = timeoutEvent->dup();
+   /* MyMessage * cancelTimeoutMessage = timeoutEvent->dup();
     cancelTimeoutMessage->setChar_Count(-1);
     cancelTimeoutMessage->setSeq_Num(mmsg->getSeq_Num());
     send(cancelTimeoutMessage,"out");*/
@@ -180,144 +444,199 @@ void Node::cencelTimeout(int ack)
 
 void Node::initialize()
 {
-    ack_expected = 0;
-    next_frame_to_send = 0;
-    frame_expected = 0;
-    nbuffered = 0;
-    dynamic_window_start = 0;
-
-    timeoutEvent = new MyMessage_Base("timeout");
-    timeoutEvent->setE_Type(TIMEOUT);
-
-    newMessageEvent = new MyMessage_Base("New Message");
-    newMessageEvent->setE_Type(NETWORK_LAYER_READY);
-
-    errorEvent = new MyMessage_Base("Error");
-    errorEvent->setE_Type(ERR);
-
-    // creating random content for communication
-    if ( strcmp(getName(),"Tic")==0)
-    {
-        buffer.push_back(createMessage("HI"));
-        buffer.push_back(createMessage("How are you ?"));
-        buffer.push_back(createMessage("It's great !"));
-        buffer.push_back(createMessage("Can you hear me ?"));
-        buffer.push_back(createMessage("yessss"));
-        buffer.push_back(createMessage(":')"));
-        buffer.push_back(createMessage("Can you kill me ?"));
-        buffer.push_back(createMessage("I'm bored"));
-        buffer.push_back(createMessage("Thanks"));
-        buffer.push_back(createMessage("Sad"));
-    }
-    else{
-        buffer.push_back(createMessage("HELLO"));
-        buffer.push_back(createMessage("How is your day ?"));
-        buffer.push_back(createMessage("I'm good"));
-        buffer.push_back(createMessage("Yes !"));
-        buffer.push_back(createMessage("Can you ?"));
-        buffer.push_back(createMessage(":'D"));
-        buffer.push_back(createMessage("Why?"));
-        buffer.push_back(createMessage("okay sure"));
-        buffer.push_back(createMessage("but I can't"));
-        buffer.push_back(createMessage("yeah very sad"));
-    }
-    timeoutBuffer.resize(buffer.size());
-    // Start scheduling
-    createMessageEvent();
+    total_generated_frames = 0;
+    total_dropped_frames = 0; //Dropped at sender or receiver?
+    total_retransmitted_frames = 0;
+    useful_data = 0;
+    total_Acks = 0;
+    total_Nacks = 0;
+    //reset();
+    n=getParentModule()->par("numberofNodes");
+    currentPeerIndex=-1;
 }
 
 void Node::handleMessage(cMessage *msg)
 {
-
-    MyMessage_Base *mmsg = check_and_cast<MyMessage_Base *>(msg);
-    if(mmsg->getSeq_Num() == -1) initialize();
-    switch(mmsg->getE_Type())
+    int index = n+1;
+    MyMessage *mmsg = check_and_cast<MyMessage *>(msg);
+    if(!mmsg->isSelfMessage())
     {
-        case NETWORK_LAYER_READY:
+        index=msg->getArrivalGate()->getIndex();
+        EV<<"Received message from "<<index<<endl;
+    }
+    //Message is from parent to initialize sending
+    if(index==n-1)
+    {
+        //set pear index
+        framesCount=mmsg->getReceived_Frames_Count();
+        fileName= mmsg->getM_Payload();
+        currentPeerIndex=mmsg->getSeq_Num();
+        if(currentPeerIndex>getIndex())
+            currentPeerIndex--;
 
-            nbuffered++;
-            sendNewMessage(next_frame_to_send,frame_expected,buffer);
-            inc(next_frame_to_send,0);
+        EV<<"Node received initialization message from parent, peer index is "<<mmsg->getSeq_Num()<<" "<<currentPeerIndex<<endl;
+        EV<<"file path: "<<fileName<<"\n";
+        reset();
+        // Start scheduling
+        createMessageEvent();
+    }
+    //Message is from pear
+    else
+    {
+        //receive message from peer
+        receiveMessageFromPeer(mmsg);
+    }
 
-            createMessageEvent(); //schedule mew message to send
-            break;
+}
 
-        case FRAME_ARRIVAL:
+void Node::receiveMessageFromPeer(MyMessage *mmsg)
+{
+        switch(mmsg->getE_Type())
         {
-            if(mmsg->getSeq_Num() <= frame_expected)
+            case NETWORK_LAYER_READY:
+
+                nbuffered++;
+                sendNewMessage(next_frame_to_send,frame_expected,buffer);
+                inc(next_frame_to_send,0);
+
+                createMessageEvent(); //schedule mew message to send
+                break;
+
+            case FRAME_ARRIVAL:
             {
-                // Checking message
-                std::vector<std::bitset<8>> message;
-                message.push_back((int)mmsg->getChar_Count());
-                std::string inp = mmsg->getM_Payload();
-                for(int i = 0;i <inp.size();i++)    message.push_back(std::bitset<8>(inp[i]));
-
-                std::bitset<8> evenParity (message[0]);
-                for(int i = 1;i <message.size();i++) evenParity = evenParity ^ message[i];
-
-                static bool correctMessage = true;
-                if(evenParity != mmsg->getMycheckbits())
+                if(mmsg->getSeq_Num() == frame_expected) //Condition modified for duplication case
                 {
-                    //Error detected
-                    EV<< getName()<<":Message with seq "<<mmsg->getSeq_Num()<<" has an ERROR!"<<endl;
-                    correctMessage = false;
-                }
-                if(correctMessage){
-                    //Printing the cool details of the message
-                    bubble(mmsg->getM_Payload());
-                    EV<<"received message at: ";
-                    EV << getName();
-                    EV<<" received message with type: ";
-                    EV << mmsg->getM_Type();
-                    EV<<" received message with sequence number: ";
-                    EV << mmsg->getSeq_Num();
-                    EV<<" and payload of: ";
-                    EV<< mmsg->getM_Payload();
-                    EV<<" and ack of: ";
-                    EV<< mmsg->getAck();
+                    // Checking message
+                    std::vector<std::bitset<8>> message;
+                    message.push_back((int)mmsg->getChar_Count());
+                    std::string inp = mmsg->getM_Payload();
+                    for(int i = 0;i <inp.size();i++)    message.push_back(std::bitset<8>(inp[i]));
 
+                    std::bitset<8> evenParity (message[0]);
+                    for(int i = 1;i <message.size();i++) evenParity = evenParity ^ message[i];
 
-
-                    /*while(between(ack_expected+dynamic_window_start,mmsg->getAck(),next_frame_to_send+dynamic_window_start))
+                    static bool correctMessage = true;
+                    if(evenParity != mmsg->getMycheckbits())
                     {
-                        nbuffered--;
-                        cencelTimeout(ack_expected+dynamic_window_start);
-                        inc(ack_expected,1);
-                    }*/
+                        //Error detected
+                        EV<< getName()<<":Message with seq "<<mmsg->getSeq_Num()<<" has an ERROR!"<<endl;
+                        correctMessage = false;
+                    }
+                    if(correctMessage){
+                        //Printing the cool details of the message
+                        bubble(mmsg->getM_Payload());
+                        EV<<"received message at: ";
+                        EV << getName();
+                        EV<<" received message with type: ";
+                        EV << mmsg->getReceived_Frames_Count();
+                        EV<<" received message with sequence number: ";
+                        EV << mmsg->getSeq_Num();
+                        EV<<" and payload of: ";
+                        EV<< mmsg->getM_Payload();
+                        EV<<" and ack of: ";
+                        EV<< mmsg->getAck();
+                        EV <<endl;
 
-                    if(mmsg->getSeq_Num() == frame_expected)
-                        inc(frame_expected,2);
+                        //Increment useful data
+                        useful_data += 1;
+
+                        /*while(between(ack_expected+dynamic_window_start,mmsg->getAck(),next_frame_to_send+dynamic_window_start))
+                        {
+                            nbuffered--;
+                            cencelTimeout(ack_expected+dynamic_window_start);
+                            inc(ack_expected,1);
+                        }*/
+
+                        if(mmsg->getSeq_Num() == frame_expected)
+                            inc(frame_expected,2);
 
 
-                    /*if(nbuffered == 0)
-                    {
-                        next_frame_to_send = 0;
-                        dynamic_window_start =0;
-                    }*/
+                        /*if(nbuffered == 0)
+                        {
+                            next_frame_to_send = 0;
+                            dynamic_window_start =0;
+                        }*/
+                    }
+                    else
+                        correctMessage = true;
+
                 }
                 else
-                    correctMessage = true;
+                {
+                    EV<<"received message at: ";
+                    EV << getName();
+                    EV<<" with seq= ";
+                    EV << mmsg->getSeq_Num();
+                    EV<<" BUT IGNORED!!";
+                }
 
-            }
-            else
-            {
-                EV<<"received message at: ";
-                EV << getName();
-                EV<<" with seq= ";
-                EV << mmsg->getSeq_Num();
-                EV<<" BUT IGNORED!!";
-            }
+                while(between(ack_expected+dynamic_window_start,mmsg->getAck(),next_frame_to_send+dynamic_window_start))
+                {
+                    nbuffered--;
+                    cencelTimeout(ack_expected+dynamic_window_start);
+                    inc(ack_expected,1);
+                }
+                moveDynamicWindow();
 
-            while(between(ack_expected+dynamic_window_start,mmsg->getAck(),next_frame_to_send+dynamic_window_start))
-            {
-                nbuffered--;
-                cencelTimeout(ack_expected+dynamic_window_start);
-                inc(ack_expected,1);
-            }
-            moveDynamicWindow();
+                if(ack_expected+dynamic_window_start == buffer.size()-1 && nbuffered !=0)
+                {
+                    nbuffered= 0;
+                    for(int i = 0; i < timeoutBuffer.size();i++)
+                    {
+                        if(timeoutBuffer[i] != nullptr)
+                        {
+                            cancelAndDelete(timeoutBuffer[i]);
+                            timeoutBuffer[i]=nullptr;
+                        }
+                    }
+                    ack_expected = 0;
 
-            if(ack_expected+dynamic_window_start == buffer.size()-1 && nbuffered !=0)
-            {
+                    //TODO::send to parent
+                    MyMessage* parentMsg=new MyMessage(" ");
+                    MyMessage* finishMsg= finishEvent->dup();
+
+                    //Debug
+                    printStats();
+                    //EV << "Just finished and calling parent" << endl;
+                    //
+                    send(finishMsg,"out",currentPeerIndex);
+                    send(parentMsg,"out",n-1);
+                }
+
+                delete mmsg;
+                break;
+            }
+            case ERR:
+                break; //Silence
+
+            case TIMEOUT:
+
+                next_frame_to_send = ack_expected;
+                EV<< getName()<<": Resending starting from: ";
+                EV<< next_frame_to_send + dynamic_window_start<<endl;
+                for(int i=1; i<=nbuffered; i++)
+                {
+
+                    ResendMessage(next_frame_to_send,frame_expected,buffer);
+                    EV<< "Message with seq "<<next_frame_to_send + dynamic_window_start<<" has been re-sent"<<endl;
+                    inc(next_frame_to_send,0);
+                }
+
+                for(int i = 0; i < timeoutBuffer.size();i++)
+                {
+                    if(timeoutBuffer[i] != nullptr)
+                    {
+                        cancelAndDelete(timeoutBuffer[i]);
+                        timeoutBuffer[i]=nullptr;
+                    }
+                }
+
+                //delete mmsg;
+
+                break;
+
+            case FINISH:
+                MyMessage* parentMsg=new MyMessage(" ");
                 nbuffered= 0;
                 for(int i = 0; i < timeoutBuffer.size();i++)
                 {
@@ -328,119 +647,16 @@ void Node::handleMessage(cMessage *msg)
                     }
                 }
                 ack_expected = 0;
-            }
-
-            delete mmsg;
-            break;
+                //Debug
+                printStats();
+                //EV << "Just finished and calling parent" << endl;
+                send(parentMsg,"out",n-1);
         }
-        case ERR:
-            break; //Silence
 
-        case TIMEOUT:
-
-            next_frame_to_send = ack_expected;
-            EV<< getName()<<": Resending starting from: ";
-            EV<< next_frame_to_send + dynamic_window_start<<endl;
-            for(int i=1; i<=nbuffered; i++)
-            {
-                ResendMessage(next_frame_to_send,frame_expected,buffer);
-                EV<< "Message with seq "<<next_frame_to_send + dynamic_window_start<<" has been re-sent"<<endl;
-                inc(next_frame_to_send,0);
-            }
-            //next_frame_to_send -= dynamic_window_start; //Move window forward
-
-            /*cFutureEventSet * queue = cSimulation::getActiveSimulation()->getFES();
-
-            for (int i =0; i< queue->getLength();i++)
-            {
-                cEvent* event = queue->get(i);
-
-                MyMessage_Base *eventMsg = check_and_cast<MyMessage_Base *>(event);
-                if(eventMsg->isSelfMessage() && eventMsg->getM_Type() == TIMEOUT)
-                {
-                    cancelAndDelete(eventMsg);
-                }
-            }*/
-            for(int i = 0; i < timeoutBuffer.size();i++)
-            {
-                if(timeoutBuffer[i] != nullptr)
-                {
-                    cancelAndDelete(timeoutBuffer[i]);
-                    timeoutBuffer[i]=nullptr;
-                }
-            }
-
-            //delete mmsg;
-
-            break;
-    }
-
-
-
-
-
-
-
-
-//    if ( strcmp(getName(),"Tic")==0)
-//    {
-//        if(mmsg->getM_Type() == 1) //Positive Ack
-//            sendNewMessage(); //Send Message and increase seq number
-//        else //Negate Ack
-//        {
-//            seq--; // Re-send message
-//            sendNewMessage();
-//        }
-//    }
-//    else
-//    {
-//        // TODO - Generated method body
-//
-//
-//        std::vector<std::bitset<8>> message;
-//
-//        std::string inp = mmsg->getM_Payload();
-//        for(int i = 0;i <inp.size();i++)    message.push_back(std::bitset<8>(inp[i]));
-//
-//        std::bitset<8> evenParity (message[0]);
-//        for(int i = 1;i <inp.size();i++) evenParity = evenParity ^ message[i];
-//
-//        if(evenParity == mmsg->getMycheckbits()) //Correct
-//        {
-//            seq++;
-//            MyMessage_Base *ackMessage = new MyMessage_Base("Ack");
-//            ackMessage->setM_Type(1); //ACK
-//            send(ackMessage,"out");
-//        }
-//        else
-//        {
-//            MyMessage_Base *ackMessage = new MyMessage_Base("nAck");
-//            ackMessage->setM_Type(2); //NACK
-//            send(ackMessage,"out");
-//        }
-//    }
-
-    /*if (cSimulation::getActiveSimulation()->getFES()->getLength() == 0)
-    {
-        MyMessage_Base* message = new MyMessage_Base("Restart");
-        message->setSeq_Num(-1);
-        send(message,"out");
-
-        initialize();
-    }*/
 }
 
 void Node::finish()
 {
-/*
-    ack_expected = 0;
-    next_frame_to_send = 0;
-    frame_expected = 0;
-    nbuffered = 0;
-    dynamic_window_start = 0;
-    createMessageEvent();
-*/
 
 }
-
 
