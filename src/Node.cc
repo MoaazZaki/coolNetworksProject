@@ -82,25 +82,9 @@ void Node::inc(int&seq,int op)
             if(seq < par("MAX_SEQ").intValue())
                 seq = (seq + 1 );// % (par("MAX_SEQ").intValue() + 1);
 
-            /*if(seq + dynamic_window_start == buffer.size() )
-            {
-                ack_expected = 0;
-                next_frame_to_send = 0;
-                //frame_expected = 0;
-                nbuffered = 0;
-                dynamic_window_start = 0;
-            }*/
             break;
 
         case 1:
-            /*if(dynamic_window_start+par("MAX_SEQ").intValue() != buffer.size())
-            {
-                dynamic_window_start++;
-                next_frame_to_send--;
-                //if(next_frame_to_send == 0)
-                    //seq = (seq + 1 ) % (buffer.size());
-            }
-            else*/
             seq = (seq + 1 ); //% (buffer.size());
             break;
 
@@ -177,16 +161,6 @@ void Node::sendNewMessage(int frame_nr,int frame_expected,std::vector<MyMessage*
     bool delay = false;
     bool corruption = false;
 
-    /*
-     * //parameters for errors
-    double delay_amount = 0.2;
-    //limit (percentage of errors) //would be changed from the ini files
-    double corr_limit = 3;
-    double delay_limit = 3;
-    double loss_limit = 3;
-    double dup_limit = 3;
-     *
-    */
     //parameters for errors
     double delay_amount = par("delay_amount").doubleValue();
     //limit (percentage of errors) //would be changed from the ini files
@@ -194,16 +168,6 @@ void Node::sendNewMessage(int frame_nr,int frame_expected,std::vector<MyMessage*
     double delay_limit = par("delay_limit").doubleValue();
     double loss_limit = par("loss_limit").doubleValue();
     double dup_limit = par("dup_limit").doubleValue();
-
-    //Debug
-    /*
-    EV<< " delay_amount "<< std::to_string(delay_amount)<<endl;
-    EV<< " delay_limit "<< std::to_string(delay_limit)<<endl;
-    EV<< " corr_limit "<< std::to_string(corr_limit)<<endl;
-    EV<< " dup_limit "<< std::to_string(dup_limit)<<endl;
-    EV<< " loss_limit "<< std::to_string(loss_limit)<<endl;
-    */
-    //
 
     // Corrupt or not
     int rand=uniform(0,1)*10;
@@ -406,25 +370,12 @@ void Node::ResendMessage(int frame_nr,int frame_expected,std::vector<MyMessage*>
     total_retransmitted_frames += 1;
     total_generated_frames += 1;
 
-
     send(message,"out",currentPeerIndex);
-
-    //ASSUME error free on re-sending any message
-//    MyMessage * currentTimeout = timeoutEvent->dup();
-//    currentTimeout->setAck(message->getAck());
-//    currentTimeout->setSeq_Num(frame_nr+dynamic_window_start);
-//    scheduleAt(simTime() + par("TIMEOUT").doubleValue(), currentTimeout);
-
 }
 
 void Node::cencelTimeout(int ack)
 {
     if(timeoutBuffer[ack] == nullptr) return;
-    //Send Cancel timeout event
-   /* MyMessage * cancelTimeoutMessage = timeoutEvent->dup();
-    cancelTimeoutMessage->setChar_Count(-1);
-    cancelTimeoutMessage->setSeq_Num(mmsg->getSeq_Num());
-    send(cancelTimeoutMessage,"out");*/
    cancelEvent(timeoutBuffer[ack]);
    delete timeoutBuffer[ack];
    timeoutBuffer[ack] = nullptr;
@@ -469,7 +420,7 @@ void Node::handleMessage(cMessage *msg)
         EV<<"Node "<<getIndex()<<" received initialization message from parent, peer index is "<<currentPeerIndex<<endl;
         EV<<"file name: "<<fileName<<"\n";
         reset();
-        // Start scheduling
+        //Start scheduling
         createMessageEvent();
     }
     //Message is from pear
@@ -532,22 +483,9 @@ void Node::receiveMessageFromPeer(MyMessage *mmsg)
                         //Increment useful data
                         useful_data += 1;
 
-                        /*while(between(ack_expected+dynamic_window_start,mmsg->getAck(),next_frame_to_send+dynamic_window_start))
-                        {
-                            nbuffered--;
-                            cencelTimeout(ack_expected+dynamic_window_start);
-                            inc(ack_expected,1);
-                        }*/
-
                         if(mmsg->getSeq_Num() == frame_expected)
                             inc(frame_expected,2);
 
-
-                        /*if(nbuffered == 0)
-                        {
-                            next_frame_to_send = 0;
-                            dynamic_window_start =0;
-                        }*/
                     }
                     else
                         correctMessage = true;
@@ -583,14 +521,10 @@ void Node::receiveMessageFromPeer(MyMessage *mmsg)
                     }
                     ack_expected = 0;
 
-                    //TODO::send to parent
                     MyMessage* parentMsg=new MyMessage(" ");
                     MyMessage* finishMsg= finishEvent->dup();
 
-                    //Debug
                     printStats();
-                    //EV << "Just finished and calling parent" << endl;
-                    //
                     send(finishMsg,"out",currentPeerIndex);
                     send(parentMsg,"out",n-1);
                 }
@@ -623,7 +557,7 @@ void Node::receiveMessageFromPeer(MyMessage *mmsg)
                     }
                 }
 
-                //delete mmsg;
+               // delete mmsg;
 
                 break;
 
@@ -639,9 +573,7 @@ void Node::receiveMessageFromPeer(MyMessage *mmsg)
                     }
                 }
                 ack_expected = 0;
-                //Debug
                 printStats();
-                //EV << "Just finished and calling parent" << endl;
                 send(parentMsg,"out",n-1);
         }
 
