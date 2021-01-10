@@ -460,7 +460,7 @@ void Node::receiveMessageFromPeer(MyMessage *mmsg)
                     for(int i = 1;i <message.size();i++) evenParity = evenParity ^ message[i];
 
                     static bool correctMessage = true;
-                    if(evenParity != mmsg->getMycheckbits())
+                    if(evenParity != mmsg->getMycheckbits() && message.size() +1 == (int)mmsg->getChar_Count())
                     {
                         //Error detected
                         EV<< getName()<<":Message with seq "<<mmsg->getSeq_Num()<<" has an ERROR!"<<endl;
