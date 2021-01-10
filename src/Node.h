@@ -1,17 +1,4 @@
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-// 
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-// 
-// You should have received a copy of the GNU Lesser General Public License
-// along with this program.  If not, see http://www.gnu.org/licenses/.
-// 
+/*Node file*/
 
 #ifndef __SECTION1_NODE_H_
 #define __SECTION1_NODE_H_
@@ -25,7 +12,6 @@
 
 using namespace omnetpp;
 
-//enum eventType {NETWORK_LAYER_READY,FRAME_ARRIVAL,ERR,TIMEOUT};
 
 class Node : public cSimpleModule
 {
@@ -36,10 +22,9 @@ class Node : public cSimpleModule
     double useful_data; //data received and accepted at receiver
     double total_Acks;  //Same as no. of generated frames (As it can be sent more than one time if message is retransmitted)
     double total_Nacks; //zero
+    bool statsPrinted;
 
     //Necessary data members for transmission
-
-
     int n;
     int currentPeerIndex;
     std::string fileName;
@@ -58,30 +43,16 @@ class Node : public cSimpleModule
 
     std::vector<MyMessage*> timeoutBuffer;
     MyMessage*  timeoutEvent;
-
-
-
     MyMessage*  newMessageEvent;
     MyMessage*  errorEvent;
     MyMessage*  finishEvent;
 
-    bool statsPrinted;
-    //
-    /*
-    double delay_amount = default(0.2);
-    //limit (percentage of errors) //would be changed from the ini files
-    int corr_limit = default(3);
-    int delay_limit = default(3);
-    int loss_limit = default(3);
-    int dup_limit = default(3);
-    */
-
-    //
 
   public:
     virtual void initialize();
     void reset();
     virtual void handleMessage(cMessage *msg);
+    void printStats();
 
     //Go-back-N methods
     void createMessageEvent();
@@ -92,49 +63,7 @@ class Node : public cSimpleModule
     void moveDynamicWindow();
     bool between(int sf,int si,int sn);
     void inc(int&seq,int op);
-    //virtual void initialize();
-    void printStats();
     void receiveMessageFromPeer(MyMessage *mmsg);
-    //virtual void handleMessage(cMessage *msg);
-    virtual void finish();
-
-    //Stat functions
-    //Setters
-    /*
-    static void inc_total_retransmitted_frames()
-    {
-        Node::total_retransmitted_frames += 1;
-    }
-    static void inc_total_generated_frames()
-    {
-        Node::total_generated_frames += 1;
-    }
-
-    static void inc_total_dropped_frames()
-    {
-        Node::total_dropped_frames += 1;
-    }
-    static void inc_useful_data()
-    {
-        Node::useful_data += 1;
-    }
-    static void inc_total_Acks()
-    {
-        Node::total_Acks += 1;
-    }
-    static void inc_total_Nacks()
-    {
-        Node::total_Nacks += 1;
-    }
-    */
-    //getters
-    /*
-    static int get_total_generated_frames()
-    {
-        int result = Node::total_generated_frames;
-        return result;
-        //return -1;
-    }*/
 
 };
 

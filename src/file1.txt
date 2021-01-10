@@ -1,7 +1,0 @@
-Messages from file 1
-Hello
-How are you
-Fine
-What are you doing
-Me too
-Have a great day

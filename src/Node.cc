@@ -1,24 +1,8 @@
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-// 
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-// 
-// You should have received a copy of the GNU Lesser General Public License
-// along with this program.  If not, see http://www.gnu.org/licenses/.
-// 
-
 #include "Node.h"
 Define_Module(Node);
 
-/*Resets data members of node in order to begin new transmission*/
 
-
+/*Prints stats of Node */
 void Node::printStats()
 {
     if(!statsPrinted)
@@ -38,10 +22,10 @@ void Node::printStats()
 
 }
 
+/*Resets data members of node in order to begin new transmission*/
 void Node::reset()
 {
-        //Reseting Go-back-N variables
-
+    //Reseting Go-back-N variables
     ack_expected = 0;
     next_frame_to_send = 0;
     frame_expected = 0;
@@ -62,7 +46,7 @@ void Node::reset()
     finishEvent = new MyMessage("Finish");
     finishEvent->setE_Type(FINISH);
 
-    //Filling in messages Buffer to begin Transmission
+    //Filling in messages Buffer from specified file to begin Transmission
     buffer.clear();
     std::vector<std::string> messages=fileReaderi.readFile(fileName);
     for(int i=0;i<messages.size();i++)
@@ -76,13 +60,11 @@ void Node::reset()
         buffer.push_back(createMessage(""));
 
     timeoutBuffer.resize(buffer.size());
-
     statsPrinted = false;
 }
 
 
-
-
+/*Sends self message in order to send a new message to peer*/
 void Node::createMessageEvent()
 {
     if(nbuffered <= par("MAX_SEQ").intValue() && next_frame_to_send + dynamic_window_start != buffer.size())
@@ -91,6 +73,7 @@ void Node::createMessageEvent()
     }
 }
 
+/*Circiular increment of sequence number*/
 void Node::inc(int&seq,int op)
 {
     switch(op) // 0:next_frame_to_send , 1:ack_expected , 2:frame_expected
@@ -129,6 +112,7 @@ void Node::inc(int&seq,int op)
 
 }
 
+/*Moves window of go-back-N*/
 void Node::moveDynamicWindow()
 {
     while(ack_expected > 0 && dynamic_window_start+ par("MAX_SEQ").intValue() < buffer.size())
@@ -139,11 +123,14 @@ void Node::moveDynamicWindow()
     }
 
 }
+
+/*Checks if frame number is between sf and sn*/
 bool Node::between(int sf,int si,int sn) // Check if sf <= si < sn
 {
     return (((sf <= si) && (si < sn)) || ((sn <sf) && (sf <= si)) || ((si < sn) && (sn < sf)));
 }
 
+/*Creates a new message to send*/
 MyMessage* Node::createMessage(std::string inp) // Create new message given string
 {
     //2) calculate the char count
@@ -159,7 +146,6 @@ MyMessage* Node::createMessage(std::string inp) // Create new message given stri
     for(int i = 1;i <message.size();i++) evenParity = evenParity ^ message[i];
 
 
-
     MyMessage *mmsg = new MyMessage(inp.c_str());
     mmsg->setM_Payload(inp.c_str());
     //mmsg->setM_Type(buffer.size()); // It's now a dummy variable so I'll use it in holding buffer size of the other side
@@ -170,10 +156,11 @@ MyMessage* Node::createMessage(std::string inp) // Create new message given stri
     return mmsg;
 }
 
+/*Sends a new message with some random errors*/
 void Node::sendNewMessage(int frame_nr,int frame_expected,std::vector<MyMessage*> buffer)
 {
     //EV << "static "<< Node::get_total_generated_frames() << endl;
-    EV<<"Node sending message " << frame_nr+dynamic_window_start <<endl;
+    EV<<"Node "<<getIndex()<<" sending message " << frame_nr+dynamic_window_start <<endl;
     MyMessage* message = buffer[frame_nr+dynamic_window_start]->dup();
     message->setSeq_Num(frame_nr+dynamic_window_start);
     message->setAck((frame_expected +buffer.size()) % (buffer.size() +1));
@@ -408,6 +395,7 @@ void Node::sendNewMessage(int frame_nr,int frame_expected,std::vector<MyMessage*
 
 }
 
+/*resends a message*/
 void Node::ResendMessage(int frame_nr,int frame_expected,std::vector<MyMessage*> buffer)
 {
     MyMessage* message = buffer[frame_nr+dynamic_window_start]->dup();
@@ -442,19 +430,23 @@ void Node::cencelTimeout(int ack)
    timeoutBuffer[ack] = nullptr;
 }
 
+/*Initializes node when it's allocated*/
 void Node::initialize()
 {
+    //Initializing static members
     total_generated_frames = 0;
     total_dropped_frames = 0; //Dropped at sender or receiver?
     total_retransmitted_frames = 0;
     useful_data = 0;
     total_Acks = 0;
     total_Nacks = 0;
-    //reset();
+
+    //Initializing data members
     n=getParentModule()->par("numberofNodes");
     currentPeerIndex=-1;
 }
 
+/*Handles message event*/
 void Node::handleMessage(cMessage *msg)
 {
     int index = n+1;
@@ -474,8 +466,8 @@ void Node::handleMessage(cMessage *msg)
         if(currentPeerIndex>getIndex())
             currentPeerIndex--;
 
-        EV<<"Node received initialization message from parent, peer index is "<<mmsg->getSeq_Num()<<" "<<currentPeerIndex<<endl;
-        EV<<"file path: "<<fileName<<"\n";
+        EV<<"Node "<<getIndex()<<" received initialization message from parent, peer index is "<<currentPeerIndex<<endl;
+        EV<<"file name: "<<fileName<<"\n";
         reset();
         // Start scheduling
         createMessageEvent();
@@ -489,6 +481,7 @@ void Node::handleMessage(cMessage *msg)
 
 }
 
+/*Go-back-N receive message*/
 void Node::receiveMessageFromPeer(MyMessage *mmsg)
 {
         switch(mmsg->getE_Type())
@@ -525,13 +518,12 @@ void Node::receiveMessageFromPeer(MyMessage *mmsg)
                     if(correctMessage){
                         //Printing the cool details of the message
                         bubble(mmsg->getM_Payload());
-                        EV<<"received message at: ";
-                        EV << getName();
-                        EV<<" received message with type: ";
+                        EV<<"Node "<<getIndex();
+                        EV<<" received message, type: ";
                         EV << mmsg->getReceived_Frames_Count();
-                        EV<<" received message with sequence number: ";
+                        EV<<", sequence number: ";
                         EV << mmsg->getSeq_Num();
-                        EV<<" and payload of: ";
+                        EV<<", payload: ";
                         EV<< mmsg->getM_Payload();
                         EV<<" and ack of: ";
                         EV<< mmsg->getAck();
@@ -654,9 +646,3 @@ void Node::receiveMessageFromPeer(MyMessage *mmsg)
         }
 
 }
-
-void Node::finish()
-{
-
-}
-
