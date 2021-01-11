@@ -15,6 +15,8 @@ using namespace omnetpp;
 
 class Node : public cSimpleModule
 {
+
+
     //Statistics
     double total_generated_frames; //Total sent at the sender side
     double total_dropped_frames;    //Total dropped at the sender side
@@ -30,6 +32,7 @@ class Node : public cSimpleModule
     std::string fileName;
     int framesCount;
     fileReader fileReaderi;
+    bool firstTime = true;
 
     //Go back-N data members
     int next_frame_to_send; //si

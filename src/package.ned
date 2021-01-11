@@ -10,7 +10,7 @@ network Network
         int numberofNodes = default(6);
         @display("bgb=359,163");
         *.numberofNodes = numberofNodes;
-        *.fcount = 3;
+        *.fcount = 6;
     submodules:
         parent: Parent {
             @display("p=242.15001,52.605");

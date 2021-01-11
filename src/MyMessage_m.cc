@@ -213,6 +213,7 @@ void MyMessage::copy(const MyMessage& other)
     this->mycheckbits = other.mycheckbits;
     this->E_Type = other.E_Type;
     this->ack = other.ack;
+    this->M_type = other.M_type;
 }
 
 void MyMessage::parsimPack(omnetpp::cCommBuffer *b) const
@@ -308,6 +309,18 @@ void MyMessage::setAck(int ack)
 {
     this->ack = ack;
 }
+
+int MyMessage::getM_type() const
+{
+    return this->M_type ;
+}
+
+void MyMessage::setM_type(int type)
+{
+    this->M_type = type;
+}
+
+
 
 class MyMessageDescriptor : public omnetpp::cClassDescriptor
 {

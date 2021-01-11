@@ -16,7 +16,7 @@
 #include "fileReader.h"
 
 #define MAX 50
-#define FILES_PATH "input\\file"
+#define FILES_PATH "input\\node"
 using namespace omnetpp;
 
 
