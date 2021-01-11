@@ -1,12 +1,12 @@
 #
-# OMNeT++/OMNEST Makefile for Lab4_Student
+# OMNeT++/OMNEST Makefile for coolNetworksProject
 #
 # This file was generated with the command:
 #  opp_makemake -f --deep
 #
 
 # Name of target to be created (-o option)
-TARGET = Lab4_Student$(D)$(EXE_SUFFIX)
+TARGET = coolNetworksProject$(D)$(EXE_SUFFIX)
 TARGET_DIR = .
 
 # User interface (uncomment one) (-u option)

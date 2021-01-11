@@ -97,9 +97,9 @@ void Parent::handleMessage(cMessage *msg)
     else
     {
         //Receive end of trasmission of a node(pair)
-        EV<<"Parent received message from node\n";
         int index=msg->getArrivalGate()->getIndex();
         isPaired[index]=false;
+        EV<<"Parent received message from node"<<index<<"\n";
     }
     cancelAndDelete(msg);
 }

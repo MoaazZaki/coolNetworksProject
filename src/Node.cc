@@ -429,10 +429,7 @@ void Node::handleMessage(cMessage *msg)
     int index = n+1;
     MyMessage *mmsg = check_and_cast<MyMessage *>(msg);
     if(!mmsg->isSelfMessage())
-    {
         index=msg->getArrivalGate()->getIndex();
-        EV<<"Received message from "<<index<<endl;
-    }
     //Message is from parent to initialize sending
     if(index==n-1)
     {
