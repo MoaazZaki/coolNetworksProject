@@ -185,6 +185,7 @@ MyMessage::MyMessage(const char *name, short kind) : ::omnetpp::cPacket(name,kin
     this->Received_Frames_Count = 0;
     this->Char_Count = 0;
     this->ack = 0;
+    this->M_type = 0;
 }
 
 MyMessage::MyMessage(const MyMessage& other) : ::omnetpp::cPacket(other)
@@ -213,6 +214,7 @@ void MyMessage::copy(const MyMessage& other)
     this->mycheckbits = other.mycheckbits;
     this->E_Type = other.E_Type;
     this->ack = other.ack;
+    this->M_type = other.M_type;
 }
 
 void MyMessage::parsimPack(omnetpp::cCommBuffer *b) const
@@ -307,6 +309,16 @@ int MyMessage::getAck() const
 void MyMessage::setAck(int ack)
 {
     this->ack = ack;
+}
+
+int MyMessage::getM_type() const
+{
+    return this->M_type ;
+}
+
+void MyMessage::setM_type(int type)
+{
+    this->M_type = type;
 }
 
 class MyMessageDescriptor : public omnetpp::cClassDescriptor

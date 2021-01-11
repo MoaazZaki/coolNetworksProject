@@ -22,7 +22,7 @@
 #include <vector>
 #include "MyMessage_m.h"
 #include "fileReader.h"
-
+#include <string>
 using namespace omnetpp;
 
 //enum eventType {NETWORK_LAYER_READY,FRAME_ARRIVAL,ERR,TIMEOUT};
@@ -39,6 +39,7 @@ class Node : public cSimpleModule
 
     //Necessary data members for transmission
 
+    bool firstTime;
 
     int n;
     int currentPeerIndex;

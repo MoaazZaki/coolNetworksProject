@@ -52,6 +52,7 @@ class MyMessage : public ::omnetpp::cPacket
     bits mycheckbits;
     event E_Type;
     int ack;
+    int M_type;
 
   private:
     void copy(const MyMessage& other);
@@ -86,6 +87,8 @@ class MyMessage : public ::omnetpp::cPacket
     virtual void setE_Type(const event& E_Type);
     virtual int getAck() const;
     virtual void setAck(int ack);
+    virtual int getM_type() const;
+    virtual void setM_type(int type);
 };
 
 inline void doParsimPacking(omnetpp::cCommBuffer *b, const MyMessage& obj) {obj.parsimPack(b);}

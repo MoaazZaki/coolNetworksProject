@@ -1,17 +1,3 @@
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-// 
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Lesser General Public License for more details.
-// 
-// You should have received a copy of the GNU Lesser General Public License
-// along with this program.  If not, see http://www.gnu.org/licenses/.
-// 
 
 #include "Node.h"
 Define_Module(Node);
@@ -47,13 +33,14 @@ void Node::reset()
     frame_expected = 0;
     nbuffered = 0;
     dynamic_window_start = 0;
-    
+    firstTime = true;
 
     timeoutEvent = new MyMessage("timeout");
     timeoutEvent->setE_Type(TIMEOUT);
 
     newMessageEvent = new MyMessage("New Message");
     newMessageEvent->setE_Type(NETWORK_LAYER_READY);
+    newMessageEvent->setM_type(2);
 
     errorEvent = new MyMessage("Error");
     errorEvent->setE_Type(ERR);
@@ -68,7 +55,6 @@ void Node::reset()
     for(int i=0;i<messages.size();i++)
     {
         buffer.push_back(createMessage(messages[i]));
-        //EV<<"added message\n";
     }
 
     //appending buffer with empty frames if frames to receive are > frames to send
@@ -97,33 +83,17 @@ void Node::inc(int&seq,int op)
     {
         case 0:
             if(seq < par("MAX_SEQ").intValue())
-                seq = (seq + 1 );// % (par("MAX_SEQ").intValue() + 1);
+                seq = (seq + 1 );
 
-            /*if(seq + dynamic_window_start == buffer.size() )
-            {
-                ack_expected = 0;
-                next_frame_to_send = 0;
-                //frame_expected = 0;
-                nbuffered = 0;
-                dynamic_window_start = 0;
-            }*/
             break;
 
         case 1:
-            /*if(dynamic_window_start+par("MAX_SEQ").intValue() != buffer.size())
-            {
-                dynamic_window_start++;
-                next_frame_to_send--;
-                //if(next_frame_to_send == 0)
-                    //seq = (seq + 1 ) % (buffer.size());
-            }
-            else*/
             seq = (seq + 1 ); //% (buffer.size());
             break;
 
 
         case 2:
-            seq = (seq + 1 ) % (buffer.size());
+            seq = (seq + 1 );// % (buffer.size());
             break;
     }
 
@@ -146,15 +116,15 @@ bool Node::between(int sf,int si,int sn) // Check if sf <= si < sn
 
 MyMessage* Node::createMessage(std::string inp) // Create new message given string
 {
-    //2) calculate the char count
+    //1) calculate the char count
     int size = inp.size() +2 ;
-    //3) define the vector of the bitsets
+    //2) define the vector of the bitsets
     std::vector<std::bitset<8>> message;
-    //4) append the charcount to the vector
+    //3) append the charcount to the vector
     message.push_back(std::bitset<8>(size));
-    //5) loop on the characters and append them to the vector
+    //4) loop on the characters and append them to the vector
     for(int i = 0;i <inp.size();i++)    message.push_back(std::bitset<8>(inp[i]));
-    //and calculate the paritty check simultaniouly
+    //5) and calculate the paritty check simultaniouly
     std::bitset<8> evenParity (message[0]);
     for(int i = 1;i <message.size();i++) evenParity = evenParity ^ message[i];
 
@@ -162,7 +132,12 @@ MyMessage* Node::createMessage(std::string inp) // Create new message given stri
 
     MyMessage *mmsg = new MyMessage(inp.c_str());
     mmsg->setM_Payload(inp.c_str());
-    //mmsg->setM_Type(buffer.size()); // It's now a dummy variable so I'll use it in holding buffer size of the other side
+
+    if(strcmp(inp.c_str(),"")==0)
+        mmsg->setM_type(1);  // 0 data - 1 ack - 2 piggypacked
+    else
+        mmsg->setM_type(2);
+
     mmsg->setChar_Count(size);
     mmsg->setMycheckbits(evenParity);
     mmsg->setE_Type(FRAME_ARRIVAL);
@@ -173,7 +148,7 @@ MyMessage* Node::createMessage(std::string inp) // Create new message given stri
 void Node::sendNewMessage(int frame_nr,int frame_expected,std::vector<MyMessage*> buffer)
 {
     //EV << "static "<< Node::get_total_generated_frames() << endl;
-    EV<<"Node sending message " << frame_nr+dynamic_window_start <<endl;
+    EV<<"Node sending message " << frame_nr+dynamic_window_start << "with payload: "endl;
     MyMessage* message = buffer[frame_nr+dynamic_window_start]->dup();
     message->setSeq_Num(frame_nr+dynamic_window_start);
     message->setAck((frame_expected +buffer.size()) % (buffer.size() +1));
@@ -528,7 +503,7 @@ void Node::receiveMessageFromPeer(MyMessage *mmsg)
                         EV<<"received message at: ";
                         EV << getName();
                         EV<<" received message with type: ";
-                        EV << mmsg->getReceived_Frames_Count();
+                        EV << mmsg->getM_type();
                         EV<<" received message with sequence number: ";
                         EV << mmsg->getSeq_Num();
                         EV<<" and payload of: ";
@@ -540,22 +515,9 @@ void Node::receiveMessageFromPeer(MyMessage *mmsg)
                         //Increment useful data
                         useful_data += 1;
 
-                        /*while(between(ack_expected+dynamic_window_start,mmsg->getAck(),next_frame_to_send+dynamic_window_start))
-                        {
-                            nbuffered--;
-                            cencelTimeout(ack_expected+dynamic_window_start);
-                            inc(ack_expected,1);
-                        }*/
-
                         if(mmsg->getSeq_Num() == frame_expected)
                             inc(frame_expected,2);
 
-
-                        /*if(nbuffered == 0)
-                        {
-                            next_frame_to_send = 0;
-                            dynamic_window_start =0;
-                        }*/
                     }
                     else
                         correctMessage = true;
@@ -578,7 +540,9 @@ void Node::receiveMessageFromPeer(MyMessage *mmsg)
                 }
                 moveDynamicWindow();
 
-                if(ack_expected+dynamic_window_start == buffer.size()-1 && nbuffered !=0)
+
+                EV<< "i HAVE ACK= "<< ack_expected+dynamic_window_start <<"AND I EXPECT THIS SEQ= "<< (frame_expected +buffer.size()) % (buffer.size() +1)<<endl;
+                if(ack_expected+dynamic_window_start == buffer.size()-1 )
                 {
                     nbuffered= 0;
                     for(int i = 0; i < timeoutBuffer.size();i++)
@@ -591,18 +555,17 @@ void Node::receiveMessageFromPeer(MyMessage *mmsg)
                     }
                     ack_expected = 0;
 
-                    //TODO::send to parent
                     MyMessage* parentMsg=new MyMessage(" ");
                     MyMessage* finishMsg= finishEvent->dup();
 
                     //Debug
                     printStats();
-                    //EV << "Just finished and calling parent" << endl;
-                    //
+
                     send(finishMsg,"out",currentPeerIndex);
                     send(parentMsg,"out",n-1);
                 }
 
+                firstTime = false;
                 delete mmsg;
                 break;
             }
